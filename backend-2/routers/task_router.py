@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from schemas import (
     TaskCreate, TaskUpdate, AddLabelRequest, AddAttachmentRequest,
     RemoveAttachmentRequest, AddLinkRequest, RemoveLinkRequest, AddCommentRequest
@@ -6,9 +6,54 @@ from schemas import (
 from controllers import task_controller, git_controller
 from dependencies import get_current_user
 from utils.router_helpers import handle_controller_response
+from utils.websocket_manager import manager
+from utils.auth_utils import verify_token_for_websocket
 import json
 
 router = APIRouter()
+
+# WebSocket endpoint for real-time Kanban board updates
+@router.websocket("/ws/project/{project_id}")
+async def kanban_websocket(websocket: WebSocket, project_id: str, token: str):
+    """WebSocket for real-time Kanban board collaboration"""
+    # Verify token
+    user_id = verify_token_for_websocket(token)
+    if not user_id:
+        await websocket.close(code=1008)  # Policy violation
+        return
+    
+    # Verify project access
+    from models.project import Project
+    if not Project.is_member(project_id, user_id):
+        await websocket.close(code=1008)
+        return
+    
+    # Connect to project's Kanban channel
+    channel_id = f"kanban_{project_id}"
+    await manager.connect(websocket, channel_id, user_id)
+    
+    try:
+        # Send connection confirmation
+        await websocket.send_json({
+            "type": "connection",
+            "channel_id": channel_id,
+            "project_id": project_id,
+            "message": "Connected to Kanban board"
+        })
+        
+        # Keep connection alive and handle incoming messages
+        while True:
+            data = await websocket.receive_json()
+            
+            # Handle heartbeat
+            if data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+                
+    except WebSocketDisconnect:
+        manager.disconnect(channel_id, user_id)
+    except Exception as e:
+        print(f"[KANBAN WS] Error: {str(e)}")
+        manager.disconnect(channel_id, user_id)
 
 @router.post("")
 async def create_task(data: TaskCreate, user_id: str = Depends(get_current_user)):

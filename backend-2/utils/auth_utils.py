@@ -233,36 +233,42 @@ def verify_token(token: str, ip_address: str = None, user_agent: str = None, tab
         })
         
         if not session:
-            print(f"[SECURITY] 🚨 TOKEN THEFT DETECTED!")
-            print(f"   Session ID: {session_id}")
-            print(f"   User ID in token: {user_id}")
-            print(f"   Reason: Session doesn't exist OR belongs to different user OR inactive")
-            
-            # Check if session exists for different user (clear token theft)
+            # Check if this is actual token theft or just expired session
             stolen_session = db.sessions.find_one({"session_id": session_id})
+            
             if stolen_session:
                 actual_owner = str(stolen_session.get("user_id"))
-                print(f"   🔥 CRITICAL: Token belongs to user {actual_owner}, but used by {user_id}")
                 
-                # Log critical security breach
-                db.security_logs.insert_one({
-                    "user_id": ObjectId(user_id),
-                    "token_id": token_id,
-                    "event": "token_theft_attempt",
-                    "severity": "critical",
-                    "details": {
-                        "session_id": session_id,
-                        "token_owner": actual_owner,
-                        "attempted_by": user_id,
-                        "ip": ip_address,
-                        "user_agent": user_agent[:100] if user_agent else "unknown"
-                    },
-                    "timestamp": datetime.datetime.now(timezone.utc).replace(tzinfo=None)
-                })
-            
-            # Blacklist the stolen token
-            if token_id:
-                blacklist_token(token_id, user_id, "session_validation_failed")
+                # ONLY blacklist if token belongs to DIFFERENT user (actual theft)
+                if actual_owner != user_id:
+                    print(f"[SECURITY] 🚨 TOKEN THEFT DETECTED!")
+                    print(f"   🔥 CRITICAL: Token belongs to user {actual_owner}, but used by {user_id}")
+                    
+                    # Log critical security breach
+                    db.security_logs.insert_one({
+                        "user_id": ObjectId(user_id),
+                        "token_id": token_id,
+                        "event": "token_theft_attempt",
+                        "severity": "critical",
+                        "details": {
+                            "session_id": session_id,
+                            "token_owner": actual_owner,
+                            "attempted_by": user_id,
+                            "ip": ip_address,
+                            "user_agent": user_agent[:100] if user_agent else "unknown"
+                        },
+                        "timestamp": datetime.datetime.now(timezone.utc).replace(tzinfo=None)
+                    })
+                    
+                    # Blacklist the stolen token
+                    if token_id:
+                        blacklist_token(token_id, user_id, "token_theft_detected")
+                else:
+                    # Same user, but session is inactive - likely expired/logout
+                    print(f"[SECURITY] Session inactive for user {user_id} (expired or logged out)")
+            else:
+                # Session doesn't exist at all - likely expired and cleaned up
+                print(f"[SECURITY] Session not found: {session_id} (likely expired)")
             
             return None
         

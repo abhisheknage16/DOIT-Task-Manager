@@ -1,4 +1,5 @@
 import json
+import asyncio
 from models.task import Task
 from models.project import Project
 from models.user import User
@@ -6,6 +7,7 @@ from utils.response import success_response, error_response, datetime_to_iso
 from utils.validators import validate_required_fields
 from utils.ticket_utils import generate_ticket_id
 from utils.label_utils import validate_label, normalize_label
+from utils.websocket_manager import manager
 from bson import ObjectId
 from datetime import datetime, timezone
 
@@ -132,6 +134,13 @@ def create_task(body_str, user_id):
     task["_id"] = str(task["_id"])
     task["created_at"] = datetime_to_iso(task["created_at"])
     task["updated_at"] = datetime_to_iso(task["updated_at"])
+    
+    # Broadcast task creation to Kanban board
+    asyncio.create_task(manager.broadcast_to_channel({
+        "type": "task_created",
+        "task": task,
+        "user_name": User.find_by_id(user_id).get("name", "Unknown") if User.find_by_id(user_id) else "Unknown"
+    }, f"kanban_{project_id}"))
     
     return success_response({
         "message": "Task created successfully",
@@ -289,12 +298,18 @@ def update_task(body_str, task_id, user_id):
     update_data = {}
     
     if "title" in data:
-        if data["title"] and len(data["title"].strip()) < 3:
-            return error_response("Task title must be at least 3 characters", 400)
-        update_data["title"] = data["title"].strip() if data["title"] else ""
+        if data["title"] is not None and data["title"].strip():  # Only update if non-empty
+            if len(data["title"].strip()) < 3:
+                return error_response("Task title must be at least 3 characters", 400)
+            update_data["title"] = data["title"].strip()
+        elif data["title"] is not None and not data["title"].strip():
+            # If empty string is explicitly sent, reject it
+            return error_response("Task title cannot be empty", 400)
     
     if "description" in data:
-        update_data["description"] = data["description"].strip() if data["description"] else ""
+        # Description can be empty, but only update if provided
+        if data["description"] is not None:
+            update_data["description"] = data["description"].strip() if data["description"] else ""
     
     if "priority" in data and data["priority"]:  # Only validate if priority is not None/empty
         valid_priorities = ["Low", "Medium", "High"]
@@ -411,6 +426,16 @@ def update_task(body_str, task_id, user_id):
         if "moved_to_backlog_at" in updated_task and updated_task["moved_to_backlog_at"]:
             updated_task["moved_to_backlog_at"] = datetime_to_iso(updated_task["moved_to_backlog_at"])
         
+        # Broadcast task update to Kanban board
+        asyncio.create_task(manager.broadcast_to_channel({
+            "type": "task_updated",
+            "task": updated_task,
+            "updated_fields": list(update_data.keys()),
+            "user_id": user_id,
+            "user_name": user_name,
+            "old_status": task.get("status") if "status" in update_data else None
+        }, f"kanban_{task['project_id']}"))
+        
         return success_response({
             "message": "Task updated successfully",
             "task": updated_task
@@ -433,10 +458,20 @@ def delete_task(task_id, user_id):
     if not Project.is_member(task["project_id"], user_id):
         return error_response("Access denied. You are not a member of this project.", 403)
     
+    project_id = task["project_id"]
+    
     # Delete task
     success = Task.delete(task_id)
     
     if success:
+        # Broadcast task deletion to Kanban board
+        user = User.find_by_id(user_id)
+        asyncio.create_task(manager.broadcast_to_channel({
+            "type": "task_deleted",
+            "task_id": task_id,
+            "user_name": user.get("name", "Unknown") if user else "Unknown"
+        }, f"kanban_{project_id}"))
+        
         return success_response({
             "message": "Task deleted successfully"
         })
