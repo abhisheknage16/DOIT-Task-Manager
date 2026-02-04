@@ -16,3 +16,7 @@ users = users_collection
 projects = projects_collection
 tasks = tasks_collection
 sprints = sprints_collection
+
+datasets = db.datasets  # Stores dataset metadata and small datasets
+dataset_files = db.dataset_files  # Stores large file chunks (GridFS alternative)
+visualizations = db.visualizations  # Stores generated visualizations

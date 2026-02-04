@@ -11,6 +11,7 @@ from controllers import chat_controller
 from controllers import member_controller
 from controllers import git_controller
 from controllers import team_chat_controller
+from controllers import data_viz_controller
 
 __all__ = [
     'auth_controller',
@@ -24,5 +25,6 @@ __all__ = [
     'chat_controller',
     'member_controller',
     'git_controller',
-    'team_chat_controller'
+    'team_chat_controller',
+    'data_viz_controller'
 ]

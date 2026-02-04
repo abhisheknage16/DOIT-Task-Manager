@@ -15,6 +15,8 @@ from .profile_router import router as profile_router
 from .user_router import router as user_router
 from .chat_router import router as chat_router
 from .team_chat_router import router as team_chat_router
+from .data_viz_router import router as data_viz_router  # ← ADD THIS
+
 
 __all__ = [
     "auth_router",
@@ -28,4 +30,5 @@ __all__ = [
     "user_router",
     "chat_router",
     "team_chat_router",
+    "data_viz_router",  # ← ADD THIS
 ]

@@ -34,6 +34,69 @@ export const getAuthHeaders = () => {
   
   return headers;
 };
+
+// Data Visualization API
+export const dataVizAPI = {
+  uploadDataset: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = localStorage.getItem('token');
+    const tabSessionKey = getTabSessionKey();
+    
+    const response = await fetch(`${API_BASE_URL}/api/data-viz/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+      },
+      body: formData
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to upload dataset');
+    return data;
+  },
+
+  getDatasets: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/data-viz/datasets`, {
+      headers: getAuthHeaders()
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to fetch datasets');
+    return data;
+  },
+
+  analyzeDataset: async (datasetId) => {
+    const response = await fetch(`${API_BASE_URL}/api/data-viz/analyze`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ dataset_id: datasetId })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to analyze dataset');
+    return data;
+  },
+
+  visualizeDataset: async (datasetId, config) => {
+    const response = await fetch(`${API_BASE_URL}/api/data-viz/visualize`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        dataset_id: datasetId,
+        config: config
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to create visualization');
+    return data;
+  },
+
+  downloadVisualization: (vizId, format = 'png') => {
+    const url = `${API_BASE_URL}/api/data-viz/download/${vizId}?format=${format}`;
+    window.open(url, '_blank');
+  }
+};
 export const chatAPI = {
   // ============================================
   // EXISTING FUNCTIONS (kept as is)

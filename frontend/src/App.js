@@ -7,6 +7,7 @@ import {
   Link,
   useNavigate,
 } from "react-router-dom";
+import { FiActivity} from 'react-icons/fi';
 import { AuthContext } from "./context/AuthContext";
 import { SignIn, SignUp, useAuth } from "@clerk/clerk-react";
 import { DashboardPage } from "./pages/Dashboard";
@@ -22,6 +23,7 @@ import AIChatbot from "./components/Chat/AIChatbot";
 import PasswordInput from "./components/Input/PasswordInput";
 import "./App.css";
 import TeamChat from "./components/TeamChat/TeamChat";
+import DataVisualization from "./components/DataVizualization/DataVisualization";
 // Authenticated App Component (uses navigate hook)
 function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
   const navigate = useNavigate();
@@ -55,6 +57,10 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               >
                 {user.name.charAt(0).toUpperCase()}
               </div>
+               <Link to="/data-viz" className="nav-link">
+                <FiActivity size={24} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                DOIT Analytics
+              </Link>
               <div className="user-info">
                 <div className="user-name">{user.name}</div>
                 <div className="user-role">
@@ -96,6 +102,8 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/system-dashboard" element={<SystemDashboardPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/data-viz" element={<DataVisualization />} />
+
         </Routes>
       </main>
       <AIChatbot user={user} />
