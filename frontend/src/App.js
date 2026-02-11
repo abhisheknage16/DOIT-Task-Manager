@@ -7,7 +7,8 @@ import {
   Link,
   useNavigate,
 } from "react-router-dom";
-import { FiActivity} from 'react-icons/fi';
+import { FiActivity } from 'react-icons/fi';
+import { BsStars } from 'react-icons/bs';  // For AI Assistant icon
 import { AuthContext } from "./context/AuthContext";
 import { SignIn, SignUp, useAuth } from "@clerk/clerk-react";
 import { DashboardPage } from "./pages/Dashboard";
@@ -21,6 +22,7 @@ import SystemDashboardPage from "./pages/SystemDashboard/SystemDashboardPage";
 import ProfilePage from "./pages/Profile/ProfilePage";
 import AIChatbot from "./components/Chat/AIChatbot";
 import PasswordInput from "./components/Input/PasswordInput";
+import AIAssistantPage from "./pages/AIAssistant/AIAssistantPage";  // NEW: AI Assistant
 import "./App.css";
 import TeamChat from "./components/TeamChat/TeamChat";
 import DataVisualization from "./components/DataVizualization/DataVisualization";
@@ -49,6 +51,24 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               {theme === "dark" ? "☀️" : "🌙"}
             </button>
 
+            <button
+              onClick={() => navigate('/ai-assistant')}
+              className="ai-assistant-btn"
+              title="DOIT AI Assistant"
+            >
+              <BsStars size={20} />
+              <span>DOIT-AI</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/data-viz')}
+              className="analytics-btn"
+              title="DOIT Analytics"
+            >
+              <FiActivity size={20} />
+              <span>DOIT Analytics</span>
+            </button>
+
             <div className="nav-user">
               <div 
                 className="user-avatar clickable"
@@ -57,10 +77,6 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               >
                 {user.name.charAt(0).toUpperCase()}
               </div>
-               <Link to="/data-viz" className="nav-link">
-                <FiActivity size={24} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                DOIT Analytics
-              </Link>
               <div className="user-info">
                 <div className="user-name">{user.name}</div>
                 <div className="user-role">
@@ -101,8 +117,9 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/system-dashboard" element={<SystemDashboardPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
           <Route path="/data-viz" element={<DataVisualization />} />
+          <Route path="/ai-assistant" element={<AIAssistantPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
 
         </Routes>
       </main>

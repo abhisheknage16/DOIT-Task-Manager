@@ -126,7 +126,7 @@ from routers import (
     auth_router, project_router, task_router, sprint_router,
     dashboard_router, profile_router, user_router, chat_router,
     member_router, system_dashboard_router, team_chat_router,
-    data_viz_router  # ← ADD THIS IMPORT
+    data_viz_router, ai_assistant_router  # ← AI Assistant
 )
 from init_db import initialize_super_admin, initialize_default_channels
 
@@ -173,12 +173,15 @@ app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 app.include_router(user_router, prefix="/api/users", tags=["Users"])
 app.include_router(chat_router, prefix="/api/chat", tags=["AI Chat"])
 app.include_router(team_chat_router, prefix="/api/team-chat", tags=["Team Chat"])
-app.include_router(data_viz_router, prefix="/api/data-viz", tags=["Data Visualization"])  # ← ADD THIS LINE
+app.include_router(data_viz_router, prefix="/api/data-viz", tags=["Data Visualization"])
+app.include_router(ai_assistant_router, prefix="/api/ai-assistant", tags=["AI Assistant"])  # ← NEW
 
-# Serve static files for chat attachments
+# Serve static files for chat attachments and AI images
 uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 (uploads_dir / "chat_attachments").mkdir(exist_ok=True)
+(uploads_dir / "ai_images").mkdir(exist_ok=True)  # ← NEW: AI generated images
+(uploads_dir / "ai_attachments").mkdir(exist_ok=True)  # ← NEW: AI conversation files
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
@@ -197,7 +200,8 @@ async def health_check():
             "Sprints",
             "AI Chat",
             "Team Chat",
-            "Data Visualization"  # ← NEW FEATURE
+            "Data Visualization",
+            "AI Assistant (GPT-5.2 + FLUX)"  # ← NEW FEATURE
         ]
     }
 
@@ -243,7 +247,8 @@ if __name__ == "__main__":
     print("  ✓ Sprint Planning")
     print("  ✓ AI-Powered Chatbot")
     print("  ✓ Team Collaboration Chat")
-    print("  ✓ Data Visualization & Analytics")  # ← NEW
+    print("  ✓ Data Visualization & Analytics")
+    print("  ✓ AI Assistant (GPT-5.2-chat + FLUX-1.1-pro)")  # ← NEW
     print("="*60)
     print("🌐 Server starting on http://0.0.0.0:8000")
     print("📖 API Docs: http://localhost:8000/docs")

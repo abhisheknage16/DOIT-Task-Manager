@@ -22,3 +22,9 @@ requests>=2.32.0
 
 # AI Integration
 anthropic>=0.34.0
+openai>=1.12.0  # For Azure OpenAI (GPT-5.2-chat)
+# Note: requests is already included above for FLUX-1.1-pro image generation
+
+# File Processing
+PyPDF2>=3.0.0  # PDF text extraction
+python-docx>=1.1.0  # Word document processing

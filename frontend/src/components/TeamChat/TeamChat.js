@@ -4,7 +4,7 @@ import {
   Smile, Edit2, Reply, Paperclip, Image, FileText, Download, MoreVertical, Wifi, WifiOff
 } from 'lucide-react';
 import { chatAPI } from '../../services/api';
-import useWebSocket from '../../utils/useWebSocket';
+import { useWebSocket } from '../../utils/useWebSocket';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 

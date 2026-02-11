@@ -15,7 +15,8 @@ from .profile_router import router as profile_router
 from .user_router import router as user_router
 from .chat_router import router as chat_router
 from .team_chat_router import router as team_chat_router
-from .data_viz_router import router as data_viz_router  # ← ADD THIS
+from .data_viz_router import router as data_viz_router
+from .ai_assistant_router import router as ai_assistant_router  # ← NEW: AI Assistant
 
 
 __all__ = [
@@ -30,5 +31,6 @@ __all__ = [
     "user_router",
     "chat_router",
     "team_chat_router",
-    "data_viz_router",  # ← ADD THIS
+    "data_viz_router",
+    "ai_assistant_router",  # ← NEW
 ]

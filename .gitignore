@@ -61,3 +61,5 @@ uploads/
 # Database
 *.db
 *.sqlite
+
+commands.docx
