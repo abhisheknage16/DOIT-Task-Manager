@@ -128,6 +128,7 @@ from routers import (
     member_router, system_dashboard_router, team_chat_router,
     data_viz_router, ai_assistant_router  # ← AI Assistant
 )
+from routers.agent_data_router import router as agent_data_router  # ← Agent Data Access
 from init_db import initialize_super_admin, initialize_default_channels
 
 @asynccontextmanager
@@ -174,6 +175,7 @@ app.include_router(user_router, prefix="/api/users", tags=["Users"])
 app.include_router(chat_router, prefix="/api/chat", tags=["AI Chat"])
 app.include_router(team_chat_router, prefix="/api/team-chat", tags=["Team Chat"])
 app.include_router(data_viz_router, prefix="/api/data-viz", tags=["Data Visualization"])
+app.include_router(agent_data_router)  # ← Agent Data Access (already has /api/agent prefix)
 app.include_router(ai_assistant_router, prefix="/api/ai-assistant", tags=["AI Assistant"])  # ← NEW
 
 # Serve static files for chat attachments and AI images
