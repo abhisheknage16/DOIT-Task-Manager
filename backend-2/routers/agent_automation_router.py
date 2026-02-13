@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/agent/automation", tags=["Agent Automation"])
 
 
 class CreateTaskRequest(BaseModel):
+    requesting_user: EmailStr  # Email of user making the request
     title: str
     project_id: str
     description: Optional[str] = ""
@@ -27,6 +28,7 @@ class CreateTaskRequest(BaseModel):
 
 
 class AssignTaskRequest(BaseModel):
+    requesting_user: EmailStr  # Email of user making the request
     assignee_identifier: str  # Email or name
 
 
@@ -35,15 +37,22 @@ async def create_task_automation(
     request: CreateTaskRequest, agent_user_id: str = Depends(verify_agent_token)
 ):
     """
-    Create a task with automatic assignee resolution
+    Create a task with automatic assignee resolution and RBAC validation
+
+    Requires:
+    - requesting_user: Email of the user making this request (for permission check)
+    - title, project_id: Required task fields
 
     Agent can provide either:
     - assignee_email: "john@example.com"
     - assignee_name: "John Doe"
 
     The system will automatically find and assign the user
+    
+    Permissions: Admin or Member can create tasks
     """
     return agent_create_task(
+        requesting_user=request.requesting_user,
         title=request.title,
         project_id=request.project_id,
         user_id=agent_user_id,
@@ -65,12 +74,19 @@ async def assign_task_automation(
     agent_user_id: str = Depends(verify_agent_token),
 ):
     """
-    Assign a task to a user by email or name
+    Assign a task to a user by email or name with RBAC validation
 
-    Example: {"assignee_identifier": "john@example.com"}
-    Example: {"assignee_identifier": "John Doe"}
+    Requires:
+    - requesting_user: Email of the user making this request
+    - assignee_identifier: Email or name of user to assign to
+
+    Example: {"requesting_user": "admin@example.com", "assignee_identifier": "john@example.com"}
+    Example: {"requesting_user": "member@example.com", "assignee_identifier": "John Doe"}
+    
+    Permissions: Admin or Member can assign tasks
     """
     return agent_assign_task(
+        requesting_user=request.requesting_user,
         task_id=task_id,
         assignee_identifier=request.assignee_identifier,
         user_id=agent_user_id,
@@ -91,3 +107,4 @@ async def get_assignable_users(
     if isinstance(response.get("body"), str):
         return json.loads(response["body"])
     return response.get("body", {})
+

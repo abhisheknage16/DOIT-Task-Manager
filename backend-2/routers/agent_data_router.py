@@ -22,13 +22,13 @@ async def get_all_projects_for_agent():
     """
     try:
         projects = list(db.projects.find({}, {
-            "_id": 0,
-            "project_id": 1,
+            "_id": 1,
             "name": 1,
             "description": 1,
             "status": 1,
             "owner": 1,
             "owner_name": 1,
+            "user_id": 1,
             "members": 1,
             "created_at": 1,
             "updated_at": 1,
@@ -37,8 +37,9 @@ async def get_all_projects_for_agent():
             "completed_tasks": 1
         }).limit(100))
         
-        # Convert datetime objects to strings
+        # Convert MongoDB ObjectId to string and rename _id to project_id
         for project in projects:
+            project["project_id"] = str(project.pop("_id"))
             if project.get("created_at"):
                 project["created_at"] = str(project["created_at"])
             if project.get("updated_at"):
@@ -59,7 +60,8 @@ async def get_all_tasks_for_agent(
     project_id: Optional[str] = None,
     status: Optional[str] = None,
     priority: Optional[str] = None,
-    assigned_to: Optional[str] = None,
+    assignee_id: Optional[str] = None,
+    assigned_to_email: Optional[str] = None,
     limit: int = 100
 ):
     """
@@ -69,7 +71,8 @@ async def get_all_tasks_for_agent(
     - project_id: Filter by specific project
     - status: Filter by status (To Do, In Progress, Dev Complete, Testing, Done)
     - priority: Filter by priority (Critical, High, Medium, Low)
-    - assigned_to: Filter by assigned user ID
+    - assignee_id: Filter by assignee user ID (MongoDB ObjectId)
+    - assigned_to_email: Filter by assigned user email address
     - limit: Maximum number of results (default 100)
     """
     try:
@@ -80,8 +83,26 @@ async def get_all_tasks_for_agent(
             query["status"] = status
         if priority:
             query["priority"] = priority
-        if assigned_to:
-            query["assigned_to"] = assigned_to
+        
+        # Handle email-based filtering
+        if assigned_to_email:
+            from models.user import User
+            user = User.find_by_email(assigned_to_email)
+            if user:
+                query["assignee_id"] = str(user["_id"])
+            else:
+                # No user found with this email - return empty results
+                return {
+                    "success": True,
+                    "count": 0,
+                    "filters_applied": {
+                        "assigned_to_email": assigned_to_email,
+                        "error": f"User with email '{assigned_to_email}' not found"
+                    },
+                    "tasks": []
+                }
+        elif assignee_id:
+            query["assignee_id"] = assignee_id
             
         tasks = list(db.tasks.find(query, {
             "_id": 0,
@@ -90,7 +111,7 @@ async def get_all_tasks_for_agent(
             "description": 1,
             "status": 1,
             "priority": 1,
-            "assigned_to": 1,
+            "assignee_id": 1,
             "assigned_to_name": 1,
             "project_id": 1,
             "project_name": 1,
@@ -119,7 +140,7 @@ async def get_all_tasks_for_agent(
                 "project_id": project_id,
                 "status": status,
                 "priority": priority,
-                "assigned_to": assigned_to
+                "assignee_id": assignee_id
             },
             "tasks": tasks
         }
