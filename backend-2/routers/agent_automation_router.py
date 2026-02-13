@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from middleware.agent_auth import verify_agent_token
 from controllers.agent_task_controller import agent_create_task, agent_assign_task
+from controllers.agent_sprint_controller import agent_create_sprint
 import json
 
 router = APIRouter(prefix="/api/agent/automation", tags=["Agent Automation"])
@@ -30,6 +31,16 @@ class CreateTaskRequest(BaseModel):
 class AssignTaskRequest(BaseModel):
     requesting_user: EmailStr  # Email of user making the request
     assignee_identifier: str  # Email or name
+
+
+class CreateSprintRequest(BaseModel):
+    requesting_user: EmailStr  # Email of user making the request (must be Admin)
+    name: str
+    project_id: str
+    start_date: str  # ISO format: YYYY-MM-DD
+    end_date: str  # ISO format: YYYY-MM-DD
+    goal: Optional[str] = ""
+    status: Optional[str] = "Planning"
 
 
 @router.post("/tasks")
@@ -108,3 +119,34 @@ async def get_assignable_users(
         return json.loads(response["body"])
     return response.get("body", {})
 
+
+@router.post("/sprints")
+async def create_sprint_automation(
+    request: CreateSprintRequest, agent_user_id: str = Depends(verify_agent_token)
+):
+    """
+    Create a new sprint with RBAC validation
+
+    Requires:
+    - requesting_user: Email of the user making this request (must be Admin)
+    - name: Sprint name
+    - project_id: Target project ID
+    - start_date: Sprint start date (ISO format: YYYY-MM-DD)
+    - end_date: Sprint end date (ISO format: YYYY-MM-DD)
+    
+    Optional:
+    - goal: Sprint goal
+    - status: Sprint status (default "Planning")
+    
+    Permissions: Only Admin users can create sprints
+    """
+    return agent_create_sprint(
+        requesting_user=request.requesting_user,
+        name=request.name,
+        project_id=request.project_id,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        user_id=agent_user_id,
+        goal=request.goal,
+        status=request.status,
+    )
