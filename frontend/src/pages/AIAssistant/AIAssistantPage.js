@@ -1,4 +1,3 @@
-
 // import React, { useState, useEffect, useRef, useContext } from 'react';
 // import { 
 //   Plus, Trash2, Send, Image, Paperclip, Bot, User, 
@@ -30,8 +29,7 @@
 //   };
 // };
 
-// // Message formatter component for rich text rendering
-// // FormattedMessage component for rich text rendering with command results
+// // Message formatter component for rich text rendering with command results
 // const FormattedMessage = ({ content, insights, userDataSummary, commandResult }) => {
 //   // Parse markdown-like formatting
 //   const formatText = (text) => {
@@ -304,150 +302,6 @@
 //   );
 // };
 
-//   // Parse lists and structure
-//   const lines = content.split('\n');
-//   const elements = [];
-//   let currentList = [];
-//   let listType = null;
-
-//   lines.forEach((line, index) => {
-//     // Headers
-//     if (line.startsWith('## ')) {
-//       if (currentList.length > 0) {
-//         elements.push(
-//           listType === 'ul' ? (
-//             <ul key={`list-${index}`}>{currentList}</ul>
-//           ) : (
-//             <ol key={`list-${index}`}>{currentList}</ol>
-//           )
-//         );
-//         currentList = [];
-//         listType = null;
-//       }
-//       elements.push(<h2 key={index}>{formatText(line.replace('## ', ''))}</h2>);
-//     } 
-//     else if (line.startsWith('### ')) {
-//       if (currentList.length > 0) {
-//         elements.push(
-//           listType === 'ul' ? (
-//             <ul key={`list-${index}`}>{currentList}</ul>
-//           ) : (
-//             <ol key={`list-${index}`}>{currentList}</ol>
-//           )
-//         );
-//         currentList = [];
-//         listType = null;
-//       }
-//       elements.push(<h3 key={index}>{formatText(line.replace('### ', ''))}</h3>);
-//     }
-//     // Bullet points
-//     else if (line.match(/^[-*]\s/)) {
-//       if (listType !== 'ul' && currentList.length > 0) {
-//         elements.push(<ol key={`list-${index}`}>{currentList}</ol>);
-//         currentList = [];
-//       }
-//       listType = 'ul';
-//       currentList.push(<li key={index}>{formatText(line.replace(/^[-*]\s/, ''))}</li>);
-//     }
-//     // Numbered lists
-//     else if (line.match(/^\d+\.\s/)) {
-//       if (listType !== 'ol' && currentList.length > 0) {
-//         elements.push(<ul key={`list-${index}`}>{currentList}</ul>);
-//         currentList = [];
-//       }
-//       listType = 'ol';
-//       currentList.push(<li key={index}>{formatText(line.replace(/^\d+\.\s/, ''))}</li>);
-//     }
-//     // Horizontal rule
-//     else if (line.trim() === '---') {
-//       if (currentList.length > 0) {
-//         elements.push(
-//           listType === 'ul' ? (
-//             <ul key={`list-${index}`}>{currentList}</ul>
-//           ) : (
-//             <ol key={`list-${index}`}>{currentList}</ol>
-//           )
-//         );
-//         currentList = [];
-//         listType = null;
-//       }
-//       elements.push(<hr key={index} />);
-//     }
-//     // Regular paragraph
-//     else if (line.trim()) {
-//       if (currentList.length > 0) {
-//         elements.push(
-//           listType === 'ul' ? (
-//             <ul key={`list-${index}`}>{currentList}</ul>
-//           ) : (
-//             <ol key={`list-${index}`}>{currentList}</ol>
-//           )
-//         );
-//         currentList = [];
-//         listType = null;
-//       }
-//       elements.push(<p key={index}>{formatText(line)}</p>);
-//     }
-//   });
-
-//   // Add remaining list items
-//   if (currentList.length > 0) {
-//     elements.push(
-//       listType === 'ul' ? (
-//         <ul key="final-list">{currentList}</ul>
-//       ) : (
-//         <ol key="final-list">{currentList}</ol>
-//       )
-//     );
-//   }
-
-//   return (
-//     <div>
-//       {/* User Data Summary Cards */}
-//       {userDataSummary && (
-//         <div className="ai-data-summary">
-//           <div className="ai-data-card">
-//             <div className="ai-data-value">{userDataSummary.total_tasks}</div>
-//             <div className="ai-data-label">Total Tasks</div>
-//           </div>
-//           <div className="ai-data-card">
-//             <div className="ai-data-value" style={{ color: userDataSummary.overdue_tasks > 0 ? '#f44336' : '#4caf50' }}>
-//               {userDataSummary.overdue_tasks}
-//             </div>
-//             <div className="ai-data-label">Overdue</div>
-//           </div>
-//           <div className="ai-data-card">
-//             <div className="ai-data-value">{userDataSummary.total_projects}</div>
-//             <div className="ai-data-label">Projects</div>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Insights Cards */}
-//       {insights && insights.length > 0 && (
-//         <div className="ai-insights-container">
-//           {insights.slice(0, 3).map((insight, idx) => (
-//             <div key={idx} className={`ai-insight-card ${insight.type}`}>
-//               <div className="ai-insight-icon">
-//                 {insight.type === 'warning' && <AlertTriangle size={16} />}
-//                 {insight.type === 'success' && <CheckCircle2 size={16} />}
-//                 {insight.type === 'info' && <Info size={16} />}
-//                 {insight.type === 'critical' && <AlertCircle size={16} />}
-//               </div>
-//               <div className="ai-insight-content">
-//                 <div className="ai-insight-title">{insight.title}</div>
-//                 <div className="ai-insight-description">{insight.description}</div>
-//               </div>
-//             </div>
-//           ))}
-//         </div>
-//       )}
-
-//       {/* Main content */}
-//       <div>{elements}</div>
-//     </div>
-//   );
-
 // const AIAssistantPage = () => {
 //   const { user } = useContext(AuthContext);
 //   const [conversations, setConversations] = useState([]);
@@ -570,7 +424,7 @@
 //           body: JSON.stringify({
 //             content: messageContent,
 //             stream: false,
-//             include_user_context: true // Enable user context
+//             include_user_context: true
 //           })
 //         }
 //       );
@@ -579,12 +433,18 @@
 //       setIsTyping(false);
 
 //       if (data.success && data.message) {
-//         // Add AI response with insights and user data
+//         // Add AI response with all metadata including command results
 //         setMessages(prev => [...prev, {
 //           ...data.message,
 //           insights: data.insights,
-//           user_data_summary: data.user_data_summary
+//           user_data_summary: data.user_data_summary,
+//           command_result: data.command_result // NEW: Include command results
 //         }]);
+        
+//         // Show success notification for commands
+//         if (data.command_executed && data.command_result?.success) {
+//           console.log('✅ Command executed successfully:', data.command_result);
+//         }
         
 //         loadConversations();
 //       } else {
@@ -593,6 +453,14 @@
 //     } catch (error) {
 //       console.error('Error sending message:', error);
 //       setIsTyping(false);
+      
+//       // Add error message
+//       const errorMessage = {
+//         role: 'assistant',
+//         content: '❌ Sorry, I encountered an error processing your request. Please try again.',
+//         created_at: new Date().toISOString()
+//       };
+//       setMessages(prev => [...prev, errorMessage]);
 //     } finally {
 //       setIsLoading(false);
 //     }
@@ -765,9 +633,9 @@
 
 //   const suggestionPrompts = [
 //     "Show me my task overview and priorities",
-//     "What should I focus on today?",
-//     "Analyze my team's workload distribution",
-//     "Give me insights on blocked tasks"
+//     "Create a high priority task for login bug fix",
+//     "List all my overdue tasks",
+//     "What should I focus on today?"
 //   ];
 
 //   return (
@@ -827,7 +695,8 @@
 //               </div>
 //               <div className="ai-empty-subtitle">
 //                 Get personalized insights, task analytics, and intelligent recommendations 
-//                 based on your project data and team performance.
+//                 based on your project data and team performance. I can also help you create, 
+//                 assign, and manage tasks automatically!
 //               </div>
 //               <div className="ai-suggestion-chips">
 //                 {suggestionPrompts.map((prompt, idx) => (
@@ -858,6 +727,7 @@
 //                         content={msg.content}
 //                         insights={msg.insights}
 //                         userDataSummary={msg.user_data_summary}
+//                         commandResult={msg.command_result}
 //                       />
 //                     </div>
 //                     {msg.image_url && (
@@ -927,7 +797,7 @@
 //               <textarea
 //                 ref={textareaRef}
 //                 className="ai-textarea"
-//                 placeholder={uploadedFile ? `Ask about "${uploadedFile}"...` : "Ask me anything about your tasks, projects, or team performance..."}
+//                 placeholder={uploadedFile ? `Ask about "${uploadedFile}"...` : "Ask me anything or give me commands like 'Create a task for...' or 'Show my tasks'"}
 //                 value={inputText}
 //                 onChange={(e) => setInputText(e.target.value)}
 //                 onKeyPress={handleKeyPress}
@@ -950,13 +820,14 @@
 // };
 
 // export default AIAssistantPage;
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { 
   Plus, Trash2, Send, Image, Paperclip, Bot, User, 
   AlertCircle, CheckCircle2, Info, AlertTriangle,
-  Clock, TrendingUp, Users, Target
+  Clock, TrendingUp, Users, Target, Zap
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
+import { foundryAgentAPI } from '../../services/foundryAgentAPI';
 import './AIAssistantPage.css';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -981,47 +852,32 @@ const getAuthHeaders = () => {
   };
 };
 
-// Message formatter component for rich text rendering with command results
+// ─────────────────────────────────────────────────────────────────────────────
+// Message formatter — unchanged from original
+// ─────────────────────────────────────────────────────────────────────────────
 const FormattedMessage = ({ content, insights, userDataSummary, commandResult }) => {
-  // Parse markdown-like formatting
   const formatText = (text) => {
     if (!text) return null;
-
-    // Split by code blocks first
     const parts = text.split(/(```[\s\S]*?```|`[^`]+`)/g);
-    
     return parts.map((part, index) => {
-      // Code block
       if (part.startsWith('```')) {
         const code = part.replace(/```(\w*)\n?/g, '').replace(/```$/g, '');
-        return (
-          <pre key={index}>
-            <code>{code}</code>
-          </pre>
-        );
+        return <pre key={index}><code>{code}</code></pre>;
       }
-      
-      // Inline code
       if (part.startsWith('`') && part.endsWith('`')) {
         return <code key={index}>{part.slice(1, -1)}</code>;
       }
-
-      // Regular text with formatting
       let formatted = part;
-      
-      // Bold
       formatted = formatted.split(/(\*\*[^*]+\*\*)/g).map((segment, i) => {
         if (segment.startsWith('**') && segment.endsWith('**')) {
           return <strong key={`bold-${i}`}>{segment.slice(2, -2)}</strong>;
         }
         return segment;
       });
-
       return <span key={index}>{formatted}</span>;
     });
   };
 
-  // Parse lists and structure
   const parseContent = (text) => {
     const lines = text.split('\n');
     const elements = [];
@@ -1029,182 +885,97 @@ const FormattedMessage = ({ content, insights, userDataSummary, commandResult })
     let listType = null;
 
     lines.forEach((line, index) => {
-      // Headers
       if (line.startsWith('## ')) {
         if (currentList.length > 0) {
-          elements.push(
-            listType === 'ul' ? (
-              <ul key={`list-${index}`}>{currentList}</ul>
-            ) : (
-              <ol key={`list-${index}`}>{currentList}</ol>
-            )
-          );
-          currentList = [];
-          listType = null;
+          elements.push(listType === 'ul' ? <ul key={`list-${index}`}>{currentList}</ul> : <ol key={`list-${index}`}>{currentList}</ol>);
+          currentList = []; listType = null;
         }
         elements.push(<h2 key={index}>{formatText(line.replace('## ', ''))}</h2>);
-      } 
-      else if (line.startsWith('### ')) {
+      } else if (line.startsWith('### ')) {
         if (currentList.length > 0) {
-          elements.push(
-            listType === 'ul' ? (
-              <ul key={`list-${index}`}>{currentList}</ul>
-            ) : (
-              <ol key={`list-${index}`}>{currentList}</ol>
-            )
-          );
-          currentList = [];
-          listType = null;
+          elements.push(listType === 'ul' ? <ul key={`list-${index}`}>{currentList}</ul> : <ol key={`list-${index}`}>{currentList}</ol>);
+          currentList = []; listType = null;
         }
         elements.push(<h3 key={index}>{formatText(line.replace('### ', ''))}</h3>);
-      }
-      // Bullet points
-      else if (line.match(/^[-*]\s/)) {
-        if (listType !== 'ul' && currentList.length > 0) {
-          elements.push(<ol key={`list-${index}`}>{currentList}</ol>);
-          currentList = [];
-        }
+      } else if (line.match(/^[-*]\s/)) {
+        if (listType !== 'ul' && currentList.length > 0) { elements.push(<ol key={`list-${index}`}>{currentList}</ol>); currentList = []; }
         listType = 'ul';
         currentList.push(<li key={index}>{formatText(line.replace(/^[-*]\s/, ''))}</li>);
-      }
-      // Numbered lists
-      else if (line.match(/^\d+\.\s/)) {
-        if (listType !== 'ol' && currentList.length > 0) {
-          elements.push(<ul key={`list-${index}`}>{currentList}</ul>);
-          currentList = [];
-        }
+      } else if (line.match(/^\d+\.\s/)) {
+        if (listType !== 'ol' && currentList.length > 0) { elements.push(<ul key={`list-${index}`}>{currentList}</ul>); currentList = []; }
         listType = 'ol';
         currentList.push(<li key={index}>{formatText(line.replace(/^\d+\.\s/, ''))}</li>);
-      }
-      // Horizontal rule
-      else if (line.trim() === '---') {
+      } else if (line.trim() === '---') {
         if (currentList.length > 0) {
-          elements.push(
-            listType === 'ul' ? (
-              <ul key={`list-${index}`}>{currentList}</ul>
-            ) : (
-              <ol key={`list-${index}`}>{currentList}</ol>
-            )
-          );
-          currentList = [];
-          listType = null;
+          elements.push(listType === 'ul' ? <ul key={`list-${index}`}>{currentList}</ul> : <ol key={`list-${index}`}>{currentList}</ol>);
+          currentList = []; listType = null;
         }
         elements.push(<hr key={index} />);
-      }
-      // Regular paragraph
-      else if (line.trim()) {
+      } else if (line.trim()) {
         if (currentList.length > 0) {
-          elements.push(
-            listType === 'ul' ? (
-              <ul key={`list-${index}`}>{currentList}</ul>
-            ) : (
-              <ol key={`list-${index}`}>{currentList}</ol>
-            )
-          );
-          currentList = [];
-          listType = null;
+          elements.push(listType === 'ul' ? <ul key={`list-${index}`}>{currentList}</ul> : <ol key={`list-${index}`}>{currentList}</ol>);
+          currentList = []; listType = null;
         }
         elements.push(<p key={index}>{formatText(line)}</p>);
       }
     });
 
-    // Add remaining list items
     if (currentList.length > 0) {
-      elements.push(
-        listType === 'ul' ? (
-          <ul key="final-list">{currentList}</ul>
-        ) : (
-          <ol key="final-list">{currentList}</ol>
-        )
-      );
+      elements.push(listType === 'ul' ? <ul key="final-list">{currentList}</ul> : <ol key="final-list">{currentList}</ol>);
     }
-
     return elements;
   };
 
   return (
     <div>
-      {/* Command Execution Result - Show at top */}
       {commandResult && (
         <div className="ai-command-result">
           <div className={`ai-command-badge ${commandResult.success ? 'success' : 'error'}`}>
-            {commandResult.success ? (
-              <>
-                <CheckCircle2 size={14} />
-                Command Executed
-              </>
-            ) : (
-              <>
-                <AlertCircle size={14} />
-                Command Failed
-              </>
-            )}
+            {commandResult.success ? (<><CheckCircle2 size={14} />Command Executed</>) : (<><AlertCircle size={14} />Command Failed</>)}
           </div>
-          
-          {/* Show Tasks if present */}
           {commandResult.tasks && commandResult.tasks.length > 0 && (
             <div className="ai-command-tasks">
-              <h4>
-                <Target size={16} />
-                Tasks ({commandResult.count})
-              </h4>
+              <h4><Target size={16} />Tasks ({commandResult.count})</h4>
               <ul>
                 {commandResult.tasks.map((task, idx) => (
                   <li key={idx}>
                     <span className="task-ticket">[{task.ticket_id}]</span>
                     <span className="task-title">{task.title}</span>
                     <span className="task-status">{task.status}</span>
-                    <span className={`task-priority priority-${task.priority.toLowerCase()}`}>
-                      {task.priority}
-                    </span>
+                    <span className={`task-priority priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
                     {task.assignee && task.assignee !== 'Unassigned' && (
-                      <span className="task-assignee">
-                        <User size={12} />
-                        {task.assignee}
-                      </span>
+                      <span className="task-assignee"><User size={12} />{task.assignee}</span>
                     )}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-
-          {/* Show Projects if present */}
           {commandResult.projects && commandResult.projects.length > 0 && (
             <div className="ai-command-projects">
-              <h4>
-                <Target size={16} />
-                Projects ({commandResult.count})
-              </h4>
+              <h4><Target size={16} />Projects ({commandResult.count})</h4>
               <ul>
                 {commandResult.projects.map((project, idx) => (
                   <li key={idx}>
                     <span className="project-name">{project.name}</span>
                     <span className="project-role">{project.role}</span>
-                    {project.description && (
-                      <span className="project-description">{project.description}</span>
-                    )}
+                    {project.description && <span className="project-description">{project.description}</span>}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-
-          {/* Show detailed result if present */}
           {commandResult.result && (
             <div className="ai-command-details">
               <details>
                 <summary>View Full Result</summary>
-                <pre>
-                  <code>{JSON.stringify(commandResult.result, null, 2)}</code>
-                </pre>
+                <pre><code>{JSON.stringify(commandResult.result, null, 2)}</code></pre>
               </details>
             </div>
           )}
         </div>
       )}
 
-      {/* User Data Summary Cards */}
       {userDataSummary && (
         <div className="ai-data-summary">
           <div className="ai-data-card">
@@ -1228,7 +999,6 @@ const FormattedMessage = ({ content, insights, userDataSummary, commandResult })
         </div>
       )}
 
-      {/* Insights Cards */}
       {insights && insights.length > 0 && (
         <div className="ai-insights-container">
           {insights.slice(0, 3).map((insight, idx) => (
@@ -1248,81 +1018,173 @@ const FormattedMessage = ({ content, insights, userDataSummary, commandResult })
         </div>
       )}
 
-      {/* Main content */}
       <div>{parseContent(content)}</div>
     </div>
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Foundry message renderer — simple markdown, no command cards needed
+// ─────────────────────────────────────────────────────────────────────────────
+const FoundryMessage = ({ content }) => {
+  const formatText = (text) => {
+    if (!text) return null;
+    const parts = text.split(/(```[\s\S]*?```|`[^`]+`)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('```')) {
+        const code = part.replace(/```(\w*)\n?/g, '').replace(/```$/g, '');
+        return <pre key={index}><code>{code}</code></pre>;
+      }
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={index}>{part.slice(1, -1)}</code>;
+      }
+      const formatted = part.split(/(\*\*[^*]+\*\*)/g).map((s, i) =>
+        s.startsWith('**') && s.endsWith('**')
+          ? <strong key={i}>{s.slice(2, -2)}</strong>
+          : s
+      );
+      return <span key={index}>{formatted}</span>;
+    });
+  };
+
+  const lines = content.split('\n');
+  const elements = [];
+  let currentList = []; let listType = null;
+
+  lines.forEach((line, index) => {
+    if (line.startsWith('## ')) {
+      if (currentList.length > 0) { elements.push(listType === 'ul' ? <ul key={`l${index}`}>{currentList}</ul> : <ol key={`l${index}`}>{currentList}</ol>); currentList = []; listType = null; }
+      elements.push(<h2 key={index}>{formatText(line.replace('## ', ''))}</h2>);
+    } else if (line.startsWith('### ')) {
+      if (currentList.length > 0) { elements.push(listType === 'ul' ? <ul key={`l${index}`}>{currentList}</ul> : <ol key={`l${index}`}>{currentList}</ol>); currentList = []; listType = null; }
+      elements.push(<h3 key={index}>{formatText(line.replace('### ', ''))}</h3>);
+    } else if (line.match(/^[-*]\s/)) {
+      if (listType !== 'ul' && currentList.length > 0) { elements.push(<ol key={`l${index}`}>{currentList}</ol>); currentList = []; }
+      listType = 'ul'; currentList.push(<li key={index}>{formatText(line.replace(/^[-*]\s/, ''))}</li>);
+    } else if (line.match(/^\d+\.\s/)) {
+      if (listType !== 'ol' && currentList.length > 0) { elements.push(<ul key={`l${index}`}>{currentList}</ul>); currentList = []; }
+      listType = 'ol'; currentList.push(<li key={index}>{formatText(line.replace(/^\d+\.\s/, ''))}</li>);
+    } else if (line.trim() === '---') {
+      if (currentList.length > 0) { elements.push(listType === 'ul' ? <ul key={`l${index}`}>{currentList}</ul> : <ol key={`l${index}`}>{currentList}</ol>); currentList = []; listType = null; }
+      elements.push(<hr key={index} />);
+    } else if (line.trim()) {
+      if (currentList.length > 0) { elements.push(listType === 'ul' ? <ul key={`l${index}`}>{currentList}</ul> : <ol key={`l${index}`}>{currentList}</ol>); currentList = []; listType = null; }
+      elements.push(<p key={index}>{formatText(line)}</p>);
+    }
+  });
+  if (currentList.length > 0) elements.push(listType === 'ul' ? <ul key="fl">{currentList}</ul> : <ol key="fl">{currentList}</ol>);
+
+  return <div>{elements}</div>;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main page
+// ─────────────────────────────────────────────────────────────────────────────
 const AIAssistantPage = () => {
   const { user } = useContext(AuthContext);
+
+  // ── Active tab: 'doit' | 'foundry' ──────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('doit');
+  const isFoundry = activeTab === 'foundry';
+
+  // ── DOIT-AI state ────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
+
+  // ── Foundry Agent state ──────────────────────────────────────────────────
+  const [foundryConvs, setFoundryConvs] = useState([]);
+  const [foundryActiveConv, setFoundryActiveConv] = useState(null);
+  const [foundryMessages, setFoundryMessages] = useState([]);
+
+  // ── Shared UI state ──────────────────────────────────────────────────────
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
+
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Load conversations on mount
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  // Load messages when conversation changes
-  useEffect(() => {
-    if (activeConversation) {
-      setMessages([]);
-      loadMessages(activeConversation._id);
-    } else {
-      setMessages([]);
-    }
-  }, [activeConversation?._id]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const loadConversations = async () => {
+  // ── Load conversations when tab changes ──────────────────────────────────
+  const loadDoitConversations = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/ai-assistant/conversations`, {
         headers: getAuthHeaders()
       });
       const data = await response.json();
-      if (data.success) {
-        setConversations(data.conversations);
-      }
+      if (data.success) setConversations(data.conversations);
     } catch (error) {
-      console.error('Error loading conversations:', error);
+      console.error('Error loading DOIT conversations:', error);
     }
-  };
+  }, []);
 
-  const loadMessages = async (conversationId) => {
+  const loadFoundryConversations = useCallback(async () => {
+    try {
+      const data = await foundryAgentAPI.listConversations();
+      if (data.success) setFoundryConvs(data.conversations || []);
+    } catch (error) {
+      console.error('Error loading Foundry conversations:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDoitConversations();
+    loadFoundryConversations();
+  }, [loadDoitConversations, loadFoundryConversations]);
+
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, foundryMessages, isTyping]);
+
+  // ── Load DOIT messages ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeConversation) {
+      setMessages([]);
+      loadDoitMessages(activeConversation._id);
+    } else {
+      setMessages([]);
+    }
+  }, [activeConversation?._id]); // eslint-disable-line
+
+  const loadDoitMessages = async (conversationId) => {
     try {
       const response = await fetch(
         `${API_BASE}/api/ai-assistant/conversations/${conversationId}/messages`,
-        {
-          headers: getAuthHeaders()
-        }
+        { headers: getAuthHeaders() }
       );
       const data = await response.json();
-      if (data.success) {
-        setMessages(data.messages);
-      }
+      if (data.success) setMessages(data.messages);
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('Error loading DOIT messages:', error);
     }
   };
 
-  const createNewConversation = async () => {
+  // ── Load Foundry messages ────────────────────────────────────────────────
+  useEffect(() => {
+    if (foundryActiveConv) {
+      setFoundryMessages([]);
+      loadFoundryMessages(foundryActiveConv._id);
+    } else {
+      setFoundryMessages([]);
+    }
+  }, [foundryActiveConv?._id]); // eslint-disable-line
+
+  const loadFoundryMessages = async (conversationId) => {
+    try {
+      const data = await foundryAgentAPI.getMessages(conversationId);
+      if (data.success) setFoundryMessages(data.messages || []);
+    } catch (error) {
+      console.error('Error loading Foundry messages:', error);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DOIT-AI actions (unchanged from original)
+  // ─────────────────────────────────────────────────────────────────────────
+  const createNewDoitConversation = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/ai-assistant/conversations`, {
         method: 'POST',
@@ -1337,23 +1199,20 @@ const AIAssistantPage = () => {
         return data.conversation;
       }
     } catch (error) {
-      console.error('Error creating conversation:', error);
+      console.error('Error creating DOIT conversation:', error);
       return null;
     }
   };
 
-  const sendMessage = async () => {
+  const sendDoitMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
     const messageContent = inputText;
     let conversationToUse = activeConversation;
 
     if (!conversationToUse) {
-      conversationToUse = await createNewConversation();
-      if (!conversationToUse) {
-        console.error('Failed to create conversation');
-        return;
-      }
+      conversationToUse = await createNewDoitConversation();
+      if (!conversationToUse) return;
     }
 
     const userMessage = {
@@ -1385,34 +1244,22 @@ const AIAssistantPage = () => {
       setIsTyping(false);
 
       if (data.success && data.message) {
-        // Add AI response with all metadata including command results
         setMessages(prev => [...prev, {
           ...data.message,
           insights: data.insights,
           user_data_summary: data.user_data_summary,
-          command_result: data.command_result // NEW: Include command results
+          command_result: data.command_result
         }]);
-        
-        // Show success notification for commands
-        if (data.command_executed && data.command_result?.success) {
-          console.log('✅ Command executed successfully:', data.command_result);
-        }
-        
-        loadConversations();
-      } else {
-        console.error('No AI response received:', data);
+        loadDoitConversations();
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending DOIT message:', error);
       setIsTyping(false);
-      
-      // Add error message
-      const errorMessage = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
         content: '❌ Sorry, I encountered an error processing your request. Please try again.',
         created_at: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -1425,20 +1272,15 @@ const AIAssistantPage = () => {
     let conversationToUse = activeConversation;
 
     if (!conversationToUse) {
-      conversationToUse = await createNewConversation();
-      if (!conversationToUse) {
-        console.error('Failed to create conversation');
-        return;
-      }
+      conversationToUse = await createNewDoitConversation();
+      if (!conversationToUse) return;
     }
 
-    const userMessage = {
+    setMessages(prev => [...prev, {
       role: 'user',
       content: `Generate image: ${prompt}`,
       created_at: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    }]);
     setInputText('');
     setIsLoading(true);
     setIsTyping(true);
@@ -1452,13 +1294,11 @@ const AIAssistantPage = () => {
           body: JSON.stringify({ prompt })
         }
       );
-
       const data = await response.json();
       setIsTyping(false);
-
       if (data.success) {
         setMessages(prev => [...prev, data.message]);
-        loadConversations();
+        loadDoitConversations();
       }
     } catch (error) {
       console.error('Error generating image:', error);
@@ -1474,20 +1314,15 @@ const AIAssistantPage = () => {
 
     let conversationToUse = activeConversation;
     if (!conversationToUse) {
-      conversationToUse = await createNewConversation();
-      if (!conversationToUse) {
-        console.error('Failed to create conversation');
-        return;
-      }
+      conversationToUse = await createNewDoitConversation();
+      if (!conversationToUse) return;
     }
 
-    const userMessage = {
+    setMessages(prev => [...prev, {
       role: 'user',
       content: `Uploaded file: ${file.name}`,
       created_at: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    }]);
     setIsLoading(true);
     setIsTyping(true);
 
@@ -1512,58 +1347,141 @@ const AIAssistantPage = () => {
 
       if (data.success) {
         if (data.ai_message_id) {
-          const aiMessage = {
+          setMessages(prev => [...prev, {
             role: 'assistant',
             content: data.message,
             created_at: new Date().toISOString()
-          };
-          setMessages(prev => [...prev, aiMessage]);
+          }]);
         }
-        
-        if (data.file?.extracted) {
-          console.log('File content extracted successfully:', data.file.metadata);
-        }
-        
         setUploadedFile(file.name);
-        loadConversations();
+        loadDoitConversations();
       } else {
         throw new Error(data.message || 'Upload failed');
       }
     } catch (error) {
       console.error('Error uploading file:', error);
-      const errorMessage = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
         content: `Sorry, I couldn't upload the file. ${error.message}`,
         created_at: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      }]);
       setIsTyping(false);
     } finally {
       setIsLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const deleteConversation = async (conversationId, e) => {
+  const deleteDoitConversation = async (conversationId, e) => {
     e.stopPropagation();
-    
     try {
       await fetch(`${API_BASE}/api/ai-assistant/conversations/${conversationId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
-      
       setConversations(prev => prev.filter(c => c._id !== conversationId));
       if (activeConversation?._id === conversationId) {
         setActiveConversation(null);
         setMessages([]);
       }
     } catch (error) {
-      console.error('Error deleting conversation:', error);
+      console.error('Error deleting DOIT conversation:', error);
     }
   };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Foundry Agent actions
+  // ─────────────────────────────────────────────────────────────────────────
+  const createNewFoundryConversation = async () => {
+    try {
+      const data = await foundryAgentAPI.createConversation('Agent Chat');
+      if (data.success && data.conversation) {
+        setFoundryConvs(prev => [data.conversation, ...prev]);
+        setFoundryActiveConv(data.conversation);
+        setFoundryMessages([]);
+        return data.conversation;
+      }
+    } catch (error) {
+      console.error('Error creating Foundry conversation:', error);
+      return null;
+    }
+  };
+
+  const sendFoundryMessage = async () => {
+    if (!inputText.trim() || isLoading) return;
+
+    const messageContent = inputText;
+    let convToUse = foundryActiveConv;
+
+    if (!convToUse) {
+      convToUse = await createNewFoundryConversation();
+      if (!convToUse) return;
+    }
+
+    const optimisticMsg = {
+      _id: `opt-${Date.now()}`,
+      role: 'user',
+      content: messageContent,
+      created_at: new Date().toISOString()
+    };
+
+    setFoundryMessages(prev => [...prev, optimisticMsg]);
+    setInputText('');
+    setIsLoading(true);
+    setIsTyping(true);
+
+    try {
+      const data = await foundryAgentAPI.sendMessage(convToUse._id, messageContent, true);
+      setIsTyping(false);
+
+      if (data.success && data.message) {
+        setFoundryMessages(prev => [...prev, data.message]);
+        loadFoundryConversations();
+      } else {
+        throw new Error(data.detail || data.error || 'No response');
+      }
+    } catch (error) {
+      console.error('Error sending Foundry message:', error);
+      setIsTyping(false);
+      // Remove optimistic message and show error
+      setFoundryMessages(prev => prev.filter(m => m._id !== optimisticMsg._id));
+      setFoundryMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ Agent error: ${error.message}. Please try again.`,
+        created_at: new Date().toISOString()
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteFoundryConversation = async (conversationId, e) => {
+    e.stopPropagation();
+    try {
+      await foundryAgentAPI.deleteConversation(conversationId);
+      setFoundryConvs(prev => prev.filter(c => c._id !== conversationId));
+      if (foundryActiveConv?._id === conversationId) {
+        setFoundryActiveConv(null);
+        setFoundryMessages([]);
+      }
+    } catch (error) {
+      console.error('Error deleting Foundry conversation:', error);
+    }
+  };
+
+  const resetFoundryThread = async () => {
+    try {
+      await foundryAgentAPI.resetThread();
+      setFoundryMessages([]);
+    } catch (error) {
+      console.error('Error resetting Foundry thread:', error);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Unified send / key handler
+  // ─────────────────────────────────────────────────────────────────────────
+  const sendMessage = () => isFoundry ? sendFoundryMessage() : sendDoitMessage();
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1572,89 +1490,150 @@ const AIAssistantPage = () => {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────────────────
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now - date;
-    
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return date.toLocaleDateString();
   };
 
-  const suggestionPrompts = [
+  // Derived values based on active tab
+  const activeConvList     = isFoundry ? foundryConvs : conversations;
+  const selectedConv       = isFoundry ? foundryActiveConv : activeConversation;
+  const activeMessages     = isFoundry ? foundryMessages : messages;
+  const setSelectedConv    = isFoundry
+    ? (c) => { setFoundryActiveConv(c); }
+    : (c) => { setActiveConversation(c); };
+  const handleNewChat      = isFoundry ? createNewFoundryConversation : createNewDoitConversation;
+  const handleDeleteConv   = isFoundry ? deleteFoundryConversation : deleteDoitConversation;
+
+  const doitSuggestions = [
     "Show me my task overview and priorities",
     "Create a high priority task for login bug fix",
     "List all my overdue tasks",
     "What should I focus on today?"
   ];
+  const foundrySuggestions = [
+    "What's the status of my projects?",
+    "Which tasks are blocked or at risk?",
+    "Help me plan this week's priorities",
+    "Analyse my sprint velocity"
+  ];
+  const suggestions = isFoundry ? foundrySuggestions : doitSuggestions;
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="ai-assistant-page">
-      {/* Sidebar - Conversations */}
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <div className="ai-sidebar">
         <div className="ai-sidebar-header">
-          <button className="new-chat-btn" onClick={createNewConversation}>
+          {/* Tab switcher */}
+          <div className="ai-tab-switcher">
+            <button
+              className={`ai-tab-btn ${!isFoundry ? 'active' : ''}`}
+              onClick={() => setActiveTab('doit')}
+            >
+              <Bot size={14} />
+              DOIT-AI
+            </button>
+            <button
+              className={`ai-tab-btn foundry ${isFoundry ? 'active' : ''}`}
+              onClick={() => setActiveTab('foundry')}
+            >
+              <Zap size={14} />
+              Foundry
+            </button>
+          </div>
+
+          <button className={`new-chat-btn ${isFoundry ? 'foundry' : ''}`} onClick={handleNewChat}>
             <Plus size={20} />
-            New Chat
+            New {isFoundry ? 'Agent' : ''} Chat
           </button>
         </div>
-        
+
         <div className="conversations-list">
-          {conversations.map(conv => (
+          {activeConvList.length === 0 && (
+            <div className="ai-no-convs">No conversations yet</div>
+          )}
+          {activeConvList.map(conv => (
             <div
               key={conv._id}
-              className={`conversation-item ${activeConversation?._id === conv._id ? 'active' : ''}`}
-              onClick={() => setActiveConversation(conv)}
+              className={`conversation-item ${selectedConv?._id === conv._id ? 'active' : ''} ${isFoundry ? 'foundry' : ''}`}
+              onClick={() => setSelectedConv(conv)}
             >
               <div className="conversation-title">{conv.title}</div>
-              <div className="conversation-date">
-                {formatTimestamp(conv.updated_at)}
-              </div>
+              <div className="conversation-date">{formatTimestamp(conv.updated_at || conv.created_at)}</div>
               <button
                 className="conversation-delete"
-                onClick={(e) => deleteConversation(conv._id, e)}
+                onClick={(e) => handleDeleteConv(conv._id, e)}
               >
                 <Trash2 size={14} />
               </button>
             </div>
           ))}
         </div>
+
+        {/* Sidebar footer badge */}
+        <div className="ai-sidebar-footer">
+          {isFoundry ? (
+            <span className="ai-engine-badge foundry">
+              <Zap size={11} /> Azure AI Foundry Agent
+            </span>
+          ) : (
+            <span className="ai-engine-badge">
+              <Bot size={11} /> GPT-powered DOIT-AI
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Main Chat Area */}
+      {/* ── Main Chat Area ────────────────────────────────────────────────── */}
       <div className="ai-chat-area">
-        <div className="ai-chat-header">
+        <div className={`ai-chat-header ${isFoundry ? 'foundry' : ''}`}>
           <div className="ai-chat-title">
-            <Bot size={20} />
-            DOIT AI Assistant
+            {isFoundry ? <Zap size={20} /> : <Bot size={20} />}
+            {isFoundry ? 'Azure AI Foundry Agent' : 'DOIT AI Assistant'}
           </div>
-          <div className="ai-status-badge">
-            <div className="ai-status-dot"></div>
-            Online
+          <div className="ai-header-right">
+            {isFoundry && selectedConv && (
+              <button className="ai-reset-btn" onClick={resetFoundryThread} title="Reset Foundry thread">
+                ↺ Reset Thread
+              </button>
+            )}
+            <div className="ai-status-badge">
+              <div className={`ai-status-dot ${isFoundry ? 'foundry' : ''}`}></div>
+              Online
+            </div>
           </div>
         </div>
 
         <div className="ai-messages-container">
-          {messages.length === 0 ? (
+          {activeMessages.length === 0 ? (
             <div className="ai-empty-state">
-              <div className="ai-empty-icon">
-                <Bot size={56} color="#667eea" />
+              <div className={`ai-empty-icon ${isFoundry ? 'foundry' : ''}`}>
+                {isFoundry ? <Zap size={56} color="#7C3AED" /> : <Bot size={56} color="#667eea" />}
               </div>
               <div className="ai-empty-title">
-                Welcome to DOIT AI Assistant
+                {isFoundry ? 'Azure AI Foundry Agent' : 'Welcome to DOIT AI Assistant'}
               </div>
               <div className="ai-empty-subtitle">
-                Get personalized insights, task analytics, and intelligent recommendations 
-                based on your project data and team performance. I can also help you create, 
-                assign, and manage tasks automatically!
+                {isFoundry
+                  ? 'Pre-configured with your DOIT context, Foundry tools, and full multi-turn memory. Ask about your tasks, projects, sprints, or anything else.'
+                  : 'Get personalized insights, task analytics, and intelligent recommendations based on your project data and team performance. I can also help you create, assign, and manage tasks automatically!'}
               </div>
               <div className="ai-suggestion-chips">
-                {suggestionPrompts.map((prompt, idx) => (
+                {suggestions.map((prompt, idx) => (
                   <div
                     key={idx}
-                    className="ai-suggestion-chip"
+                    className={`ai-suggestion-chip ${isFoundry ? 'foundry' : ''}`}
                     onClick={() => setInputText(prompt)}
                   >
                     {prompt}
@@ -1664,28 +1643,33 @@ const AIAssistantPage = () => {
             </div>
           ) : (
             <>
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`ai-message ${msg.role}`}>
-                  <div className="ai-message-avatar">
-                    {msg.role === 'user' ? (
-                      <User size={20} />
-                    ) : (
-                      <Bot size={20} />
-                    )}
+              {activeMessages.map((msg, idx) => (
+                <div key={msg._id || idx} className={`ai-message ${msg.role}`}>
+                  <div className={`ai-message-avatar ${isFoundry && msg.role === 'assistant' ? 'foundry' : ''}`}>
+                    {msg.role === 'user' ? <User size={20} /> : isFoundry ? <Zap size={20} /> : <Bot size={20} />}
                   </div>
                   <div className="ai-message-content">
                     <div className="ai-message-bubble">
-                      <FormattedMessage 
-                        content={msg.content}
-                        insights={msg.insights}
-                        userDataSummary={msg.user_data_summary}
-                        commandResult={msg.command_result}
-                      />
+                      {isFoundry ? (
+                        <FoundryMessage content={msg.content} />
+                      ) : (
+                        <FormattedMessage
+                          content={msg.content}
+                          insights={msg.insights}
+                          userDataSummary={msg.user_data_summary}
+                          commandResult={msg.command_result}
+                        />
+                      )}
                     </div>
+                    {/* Image support (DOIT-AI only) */}
                     {msg.image_url && (
                       <div className="ai-message-image">
                         <img src={`${API_BASE}${msg.image_url}`} alt="Generated" />
                       </div>
+                    )}
+                    {/* Token count badge for Foundry */}
+                    {isFoundry && msg.tokens_used > 0 && (
+                      <div className="ai-token-badge">{msg.tokens_used} tokens</div>
                     )}
                     <div className="ai-message-timestamp">
                       <Clock size={11} />
@@ -1694,11 +1678,11 @@ const AIAssistantPage = () => {
                   </div>
                 </div>
               ))}
-              
+
               {isTyping && (
                 <div className="ai-message assistant">
-                  <div className="ai-message-avatar">
-                    <Bot size={20} />
+                  <div className={`ai-message-avatar ${isFoundry ? 'foundry' : ''}`}>
+                    {isFoundry ? <Zap size={20} /> : <Bot size={20} />}
                   </div>
                   <div className="ai-message-content">
                     <div className="ai-message-bubble">
@@ -1711,45 +1695,63 @@ const AIAssistantPage = () => {
                   </div>
                 </div>
               )}
-              
+
               <div ref={messagesEndRef} />
             </>
           )}
         </div>
 
+        {/* ── Input area ──────────────────────────────────────────────── */}
         <div className="ai-input-area">
-          <div className="ai-input-actions">
-            <button 
-              className="ai-action-btn" 
-              onClick={generateImage} 
-              disabled={isLoading || !inputText.trim()}
-              title="Generate an image from your text description"
-            >
-              <Image size={16} /> Generate Image
-            </button>
-            <button 
-              className="ai-action-btn" 
-              onClick={() => fileInputRef.current?.click()} 
-              disabled={isLoading}
-              title="Upload a file to analyze"
-            >
-              <Paperclip size={16} /> Upload File
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              style={{ display: 'none' }}
-              onChange={handleFileUpload}
-              accept=".txt,.pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.json"
-            />
-          </div>
-          
+          {/* Action buttons — only show for DOIT-AI tab */}
+          {!isFoundry && (
+            <div className="ai-input-actions">
+              <button
+                className="ai-action-btn"
+                onClick={generateImage}
+                disabled={isLoading || !inputText.trim()}
+                title="Generate an image from your text description"
+              >
+                <Image size={16} /> Generate Image
+              </button>
+              <button
+                className="ai-action-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                title="Upload a file to analyze"
+              >
+                <Paperclip size={16} /> Upload File
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+                accept=".txt,.pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.json"
+              />
+            </div>
+          )}
+
+          {/* Foundry info strip */}
+          {isFoundry && (
+            <div className="ai-foundry-strip">
+              <Zap size={12} />
+              Foundry Agent has live access to your tasks, projects &amp; sprints via context injection
+            </div>
+          )}
+
           <div className="ai-input-container">
             <div className="ai-textarea-wrapper">
               <textarea
                 ref={textareaRef}
-                className="ai-textarea"
-                placeholder={uploadedFile ? `Ask about "${uploadedFile}"...` : "Ask me anything or give me commands like 'Create a task for...' or 'Show my tasks'"}
+                className={`ai-textarea ${isFoundry ? 'foundry' : ''}`}
+                placeholder={
+                  isFoundry
+                    ? 'Message the Foundry Agent… (Shift+Enter for newline)'
+                    : uploadedFile
+                    ? `Ask about "${uploadedFile}"...`
+                    : "Ask me anything or give me commands like 'Create a task for...' or 'Show my tasks'"
+                }
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -1758,7 +1760,7 @@ const AIAssistantPage = () => {
               />
             </div>
             <button
-              className="ai-send-btn"
+              className={`ai-send-btn ${isFoundry ? 'foundry' : ''}`}
               onClick={sendMessage}
               disabled={isLoading || !inputText.trim()}
             >

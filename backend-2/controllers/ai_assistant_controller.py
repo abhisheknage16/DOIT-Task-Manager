@@ -1,8 +1,7 @@
-
 """
-AI Assistant Controller - ENHANCED WITH DATABASE INSIGHTS & TASK AUTOMATION
+AI Assistant Controller - COMPLETE WITH ALL OPERATIONS
 Handles ChatGPT-like AI interactions using Azure AI Foundry (GPT-5.2-chat + FLUX-1.1-pro)
-NOW with intelligent data-driven insights from MongoDB AND task automation capabilities
+NOW with: Task automation, Sprint management, Member management, and intelligent insights
 """
 
 from fastapi import HTTPException, UploadFile
@@ -22,7 +21,7 @@ from utils.ai_data_analyzer import (
 )
 from controllers.agent_task_controller import agent_create_task, agent_assign_task
 from controllers.agent_sprint_controller import agent_create_sprint
-from controllers import task_controller, sprint_controller
+from controllers import task_controller, sprint_controller, member_controller
 from models.user import User
 from models.project import Project
 from models.task import Task
@@ -68,7 +67,6 @@ def get_user_conversations(user_id: str):
     try:
         conversations = AIConversation.get_user_conversations(user_id)
 
-        # Convert ObjectIds to strings
         for conv in conversations:
             conv["_id"] = str(conv["_id"])
 
@@ -84,7 +82,6 @@ def get_conversation_messages(conversation_id: str):
     try:
         messages = AIMessage.get_conversation_messages(conversation_id)
 
-        # Convert ObjectIds to strings
         for msg in messages:
             msg["_id"] = str(msg["_id"])
 
@@ -101,10 +98,9 @@ def get_conversation_messages(conversation_id: str):
 
 
 def detect_task_command(message: str) -> bool:
-    """
-    Detect if message contains a task automation command
-    """
+    """Detect if message contains a task automation command"""
     command_keywords = [
+        # Task operations
         "create task",
         "create a task",
         "make a task",
@@ -117,13 +113,6 @@ def detect_task_command(message: str) -> bool:
         "change status",
         "mark as",
         "set status",
-        "create sprint",
-        "start sprint",
-        "new sprint",
-        "make sprint",
-        "add to sprint",
-        "add task to sprint",
-        "put in sprint",
         "list tasks",
         "show tasks",
         "my tasks",
@@ -133,13 +122,43 @@ def detect_task_command(message: str) -> bool:
         "show all tasks",
         "tasks in",
         "tasks for",
+        "update priority",
+        "change priority",
+        "set priority",
+        # Sprint operations
+        "create sprint",
+        "start sprint",
+        "new sprint",
+        "make sprint",
+        "add to sprint",
+        "add task to sprint",
+        "put in sprint",
+        "remove from sprint",
+        "start the sprint",
+        "complete sprint",
+        "end sprint",
+        "finish sprint",
+        "list sprints",
+        "show sprints",
+        # Project operations
         "list projects",
         "show projects",
         "my projects",
         "get projects",
-        "update priority",
-        "change priority",
-        "set priority",
+        "create project",
+        "new project",
+        "make project",
+        # Member operations
+        "add member",
+        "add user",
+        "invite member",
+        "add to project",
+        "remove member",
+        "remove user",
+        "kick member",
+        "list members",
+        "show members",
+        "project members",
     ]
 
     message_lower = message.lower()
@@ -152,9 +171,7 @@ def detect_task_command(message: str) -> bool:
 
 
 def parse_task_command(command: str, context: dict = None):
-    """
-    Use Azure OpenAI to parse natural language commands into structured actions
-    """
+    """Use Azure OpenAI to parse natural language commands into structured actions"""
     try:
         system_prompt = """You are a task management command parser. Extract the action and parameters from user commands.
 
@@ -163,9 +180,17 @@ Available actions:
 - assign_task: Assign a task to someone
 - update_task: Update task properties
 - create_sprint: Create a new sprint
+- start_sprint: Start a sprint (make it active)
+- complete_sprint: Complete a sprint
 - add_task_to_sprint: Add task to a sprint
+- remove_task_from_sprint: Remove task from sprint
 - list_tasks: List tasks with filters
+- list_sprints: List sprints for a project
 - list_projects: List user's projects
+- create_project: Create a new project
+- add_member: Add member to project
+- remove_member: Remove member from project
+- list_members: List project members
 
 Return ONLY a JSON object with this structure:
 {
@@ -185,25 +210,47 @@ For create_task, extract:
 - due_date (YYYY-MM-DD format)
 - labels (array of strings)
 
+For create_sprint, extract:
+- name (required)
+- project_id or project_name (required)
+- start_date (YYYY-MM-DD)
+- end_date (YYYY-MM-DD)
+- goal (optional)
+
+For start_sprint, extract:
+- sprint_id or sprint_name (required)
+- project_id or project_name (optional)
+
+For complete_sprint, extract:
+- sprint_id or sprint_name (required)
+- project_id or project_name (optional)
+
 For add_task_to_sprint, extract:
 - task_id or task_title or ticket_id (required)
 - sprint_id or sprint_name (optional - will use active sprint if not provided)
 - project_id or project_name (optional)
 
-For assign_task, extract:
-- task_id or task_title
-- assignee_email or assignee_name
+For remove_task_from_sprint, extract:
+- task_id or task_title or ticket_id (required)
+- sprint_id or sprint_name (required)
 
-For update_task, extract:
-- task_id or task_title
-- Any fields to update (status, priority, description, etc.)
+For create_project, extract:
+- name (required)
+- description (optional)
 
-For create_sprint, extract:
-- name
-- project_id or project_name
-- start_date (YYYY-MM-DD)
-- end_date (YYYY-MM-DD)
-- goal (optional)
+For add_member, extract:
+- email (required)
+- project_id or project_name (required)
+
+For remove_member, extract:
+- email or user_id (required)
+- project_id or project_name (required)
+
+For list_members, extract:
+- project_id or project_name (required)
+
+For list_sprints, extract:
+- project_id or project_name (required)
 
 For list_tasks, extract:
 - project_id or project_name (optional)
@@ -212,17 +259,32 @@ For list_tasks, extract:
 - assignee (optional) - use "me" for current user
 
 Examples:
-"Create a high priority bug for payment gateway timeout in Project CDW, assign to kamlesh@gmail.com, due date 2026-03-15"
+"Create a high priority bug for payment gateway timeout in CDW, assign to kamlesh@gmail.com, due 2026-03-15"
 → {"action": "create_task", "params": {"title": "Payment gateway timeout issue", "priority": "High", "project_name": "CDW", "assignee_email": "kamlesh@gmail.com", "issue_type": "bug", "due_date": "2026-03-15"}}
 
-"Add this bug to the active sprint"
-→ {"action": "add_task_to_sprint", "params": {"task_title": "bug", "sprint_name": "active"}}
+"Create sprint Sprint 5 for Project CDW from 2026-03-01 to 2026-03-14"
+→ {"action": "create_sprint", "params": {"name": "Sprint 5", "project_name": "CDW", "start_date": "2026-03-01", "end_date": "2026-03-14"}}
 
-"List all tasks in CDW for kamlesh@gmail.com"
-→ {"action": "list_tasks", "params": {"project_name": "CDW", "assignee": "kamlesh@gmail.com"}}
+"Start the sprint1 sprint"
+→ {"action": "start_sprint", "params": {"sprint_name": "sprint1"}}
 
-"Show me all my overdue tasks"
-→ {"action": "list_tasks", "params": {"assignee": "me", "status": "overdue"}}
+"Complete the active sprint in CDW"
+→ {"action": "complete_sprint", "params": {"sprint_name": "active", "project_name": "CDW"}}
+
+"Add john@example.com to Project Alpha"
+→ {"action": "add_member", "params": {"email": "john@example.com", "project_name": "Project Alpha"}}
+
+"Remove sarah@example.com from CDW project"
+→ {"action": "remove_member", "params": {"email": "sarah@example.com", "project_name": "CDW"}}
+
+"List all members in CDW"
+→ {"action": "list_members", "params": {"project_name": "CDW"}}
+
+"Show all sprints in Project Alpha"
+→ {"action": "list_sprints", "params": {"project_name": "Project Alpha"}}
+
+"Create a new project called Mobile App"
+→ {"action": "create_project", "params": {"name": "Mobile App"}}
 """
 
         user_message = f"Command: {command}"
@@ -238,7 +300,6 @@ Examples:
 
         # Parse JSON response
         content = response["content"].strip()
-        # Remove markdown code blocks if present
         content = re.sub(r"```json\s*|\s*```", "", content).strip()
 
         parsed = json.loads(content)
@@ -261,9 +322,7 @@ Examples:
 
 
 def execute_task_command(user_id: str, command: str, context: dict = None):
-    """
-    Execute task-related commands from AI Assistant
-    """
+    """Execute task-related commands from AI Assistant"""
     print(f"\n{'=' * 60}")
     print(f"🎯 EXECUTING TASK COMMAND")
     print(f"{'=' * 60}")
@@ -282,7 +341,7 @@ def execute_task_command(user_id: str, command: str, context: dict = None):
 
         print(f"   👤 User: {user_email} (Role: {user_role})")
 
-        # Parse command using LLM to extract intent and parameters
+        # Parse command using LLM
         parsed_command = parse_task_command(command, context)
 
         if not parsed_command["success"]:
@@ -294,7 +353,7 @@ def execute_task_command(user_id: str, command: str, context: dict = None):
         print(f"   ⚡ Action: {action}")
         print(f"   📝 Params: {params}")
 
-        # Execute based on action type
+        # Route to appropriate handler
         if action == "create_task":
             return handle_create_task(user_email, user_id, params)
 
@@ -312,14 +371,43 @@ def execute_task_command(user_id: str, command: str, context: dict = None):
                 }
             return handle_create_sprint(user_email, user_id, params)
 
+        elif action == "start_sprint":
+            return handle_start_sprint(user_id, params)
+
+        elif action == "complete_sprint":
+            return handle_complete_sprint(user_id, params)
+
         elif action == "add_task_to_sprint":
             return handle_add_task_to_sprint(user_email, user_id, params)
+
+        elif action == "remove_task_from_sprint":
+            return handle_remove_task_from_sprint(user_id, params)
 
         elif action == "list_tasks":
             return handle_list_tasks(user_id, params)
 
+        elif action == "list_sprints":
+            return handle_list_sprints(user_id, params)
+
         elif action == "list_projects":
             return handle_list_projects(user_id)
+
+        elif action == "create_project":
+            if user_role not in ["admin", "super-admin"]:
+                return {
+                    "success": False,
+                    "error": "Only Admin users can create projects",
+                }
+            return handle_create_project(user_id, params)
+
+        elif action == "add_member":
+            return handle_add_member(user_id, params)
+
+        elif action == "remove_member":
+            return handle_remove_member(user_id, params)
+
+        elif action == "list_members":
+            return handle_list_members(user_id, params)
 
         else:
             return {"success": False, "error": f"Unknown action: {action}"}
@@ -402,7 +490,6 @@ def handle_assign_task(user_email: str, user_id: str, params: dict):
     try:
         task_id = params.get("task_id")
 
-        # If task_title provided, find task_id
         if not task_id and params.get("task_title"):
             projects = list(
                 db.projects.find(
@@ -459,7 +546,6 @@ def handle_update_task(user_email: str, user_id: str, params: dict):
     try:
         task_id = params.get("task_id")
 
-        # Find task by title if needed
         if not task_id and params.get("task_title"):
             projects = list(
                 db.projects.find(
@@ -550,7 +636,7 @@ def handle_create_sprint(user_email: str, user_id: str, params: dict):
             end_date=params.get("end_date"),
             user_id=user_id,
             goal=params.get("goal", ""),
-            status=params.get("status", "Planning"),
+            status=params.get("status", "planned"),
         )
 
         return {
@@ -565,6 +651,140 @@ def handle_create_sprint(user_email: str, user_id: str, params: dict):
         return {"success": False, "error": str(e)}
 
 
+def handle_start_sprint(user_id: str, params: dict):
+    """Handle starting a sprint"""
+    try:
+        sprint_id = params.get("sprint_id")
+
+        # Find sprint by name if not provided
+        if not sprint_id and params.get("sprint_name"):
+            project_id = params.get("project_id")
+
+            # If no project_id, try to find from context
+            if not project_id and params.get("project_name"):
+                project = db.projects.find_one(
+                    {
+                        "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                        "name": {
+                            "$regex": f"^{params['project_name']}$",
+                            "$options": "i",
+                        },
+                    }
+                )
+                if project:
+                    project_id = str(project["_id"])
+
+            if project_id:
+                sprint = db.sprints.find_one(
+                    {
+                        "project_id": project_id,
+                        "name": {"$regex": params["sprint_name"], "$options": "i"},
+                    }
+                )
+                if sprint:
+                    sprint_id = str(sprint["_id"])
+
+        if not sprint_id:
+            return {"success": False, "error": "Sprint not found"}
+
+        # Use sprint_controller to start sprint
+        response = sprint_controller.start_sprint(sprint_id, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to start sprint"),
+            }
+
+        return {
+            "success": True,
+            "action": "start_sprint",
+            "message": "✅ Sprint started successfully!",
+        }
+
+    except Exception as e:
+        print(f"Error starting sprint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_complete_sprint(user_id: str, params: dict):
+    """Handle completing a sprint"""
+    try:
+        sprint_id = params.get("sprint_id")
+
+        # Find sprint by name
+        if not sprint_id and params.get("sprint_name"):
+            project_id = params.get("project_id")
+
+            if not project_id and params.get("project_name"):
+                project = db.projects.find_one(
+                    {
+                        "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                        "name": {
+                            "$regex": f"^{params['project_name']}$",
+                            "$options": "i",
+                        },
+                    }
+                )
+                if project:
+                    project_id = str(project["_id"])
+
+            if project_id:
+                # Handle "active" keyword
+                if params["sprint_name"].lower() == "active":
+                    sprint = db.sprints.find_one(
+                        {"project_id": project_id, "status": "active"}
+                    )
+                else:
+                    sprint = db.sprints.find_one(
+                        {
+                            "project_id": project_id,
+                            "name": {"$regex": params["sprint_name"], "$options": "i"},
+                        }
+                    )
+
+                if sprint:
+                    sprint_id = str(sprint["_id"])
+
+        if not sprint_id:
+            return {"success": False, "error": "Sprint not found"}
+
+        # Use sprint_controller to complete sprint
+        response = sprint_controller.complete_sprint(sprint_id, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to complete sprint"),
+            }
+
+        result = (
+            json.loads(response["body"])
+            if isinstance(response["body"], str)
+            else response["body"]
+        )
+
+        return {
+            "success": True,
+            "action": "complete_sprint",
+            "message": result.get("message", "✅ Sprint completed successfully!"),
+        }
+
+    except Exception as e:
+        print(f"Error completing sprint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
 def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
     """Handle adding task to sprint"""
     try:
@@ -573,7 +793,7 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
         task_id = params.get("task_id")
         sprint_id = params.get("sprint_id")
 
-        # Find task by title or ticket_id if not provided
+        # Find task by title or ticket_id
         if not task_id and (params.get("task_title") or params.get("ticket_id")):
             projects = list(
                 db.projects.find(
@@ -598,7 +818,7 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
             else:
                 return {"success": False, "error": f"Task '{search_term}' not found"}
 
-        # Find sprint by name if not provided
+        # Find sprint by name
         if not sprint_id and params.get("sprint_name"):
             project_id = params.get("project_id")
             if not project_id and task_id:
@@ -607,7 +827,6 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
                     project_id = task["project_id"]
 
             if project_id:
-                # Check if "active" sprint is requested
                 if params["sprint_name"].lower() == "active":
                     sprint = db.sprints.find_one(
                         {"project_id": project_id, "status": "active"}
@@ -628,7 +847,7 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
                         "error": f"Sprint '{params['sprint_name']}' not found",
                     }
 
-        # If still no sprint_id, try to find active sprint
+        # If still no sprint_id, find active sprint
         if not sprint_id and task_id:
             task = Task.find_by_id(task_id)
             if task:
@@ -638,17 +857,14 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
                 if active_sprint:
                     sprint_id = str(active_sprint["_id"])
                 else:
-                    return {
-                        "success": False,
-                        "error": "No active sprint found. Please specify sprint name.",
-                    }
+                    return {"success": False, "error": "No active sprint found"}
 
         if not task_id or not sprint_id:
             return {"success": False, "error": "Task ID and Sprint ID are required"}
 
         print(f"   📌 Task ID: {task_id}, Sprint ID: {sprint_id}")
 
-        # Add task to sprint using sprint controller
+        # Add task to sprint
         body = json.dumps({"task_id": task_id})
         response = sprint_controller.add_task_to_sprint(sprint_id, body, user_id)
 
@@ -663,7 +879,7 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
                 "error": error_body.get("error", "Failed to add task to sprint"),
             }
 
-        # Get task and sprint details for response
+        # Get task and sprint details
         task = Task.find_by_id(task_id)
         sprint = Sprint.find_by_id(sprint_id)
 
@@ -696,19 +912,86 @@ def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
         return {"success": False, "error": str(e)}
 
 
+def handle_remove_task_from_sprint(user_id: str, params: dict):
+    """Handle removing task from sprint"""
+    try:
+        task_id = params.get("task_id")
+        sprint_id = params.get("sprint_id")
+
+        # Find task
+        if not task_id and params.get("task_title"):
+            projects = list(
+                db.projects.find(
+                    {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+                )
+            )
+            project_ids = [str(p["_id"]) for p in projects]
+
+            task = db.tasks.find_one(
+                {
+                    "project_id": {"$in": project_ids},
+                    "title": {"$regex": params["task_title"], "$options": "i"},
+                }
+            )
+
+            if task:
+                task_id = str(task["_id"])
+
+        # Find sprint
+        if not sprint_id and params.get("sprint_name"):
+            if task_id:
+                task = Task.find_by_id(task_id)
+                if task:
+                    sprint = db.sprints.find_one(
+                        {
+                            "project_id": task["project_id"],
+                            "name": {"$regex": params["sprint_name"], "$options": "i"},
+                        }
+                    )
+                    if sprint:
+                        sprint_id = str(sprint["_id"])
+
+        if not task_id or not sprint_id:
+            return {"success": False, "error": "Task ID and Sprint ID are required"}
+
+        # Remove task from sprint
+        response = sprint_controller.remove_task_from_sprint(
+            sprint_id, task_id, user_id
+        )
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to remove task"),
+            }
+
+        return {
+            "success": True,
+            "action": "remove_task_from_sprint",
+            "message": "✅ Task removed from sprint (moved to backlog)",
+        }
+
+    except Exception as e:
+        print(f"Error removing task from sprint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
 def handle_list_tasks(user_id: str, params: dict):
     """Handle task listing"""
     try:
         print(f"   📋 Listing tasks with params: {params}")
 
-        # Build query
         query = {}
 
         # Filter by assignee
         if params.get("assignee") == "me":
             query["assignee_id"] = user_id
         elif params.get("assignee"):
-            # Check if it's an email
             if "@" in params["assignee"]:
                 assignee = User.find_by_email(params["assignee"])
             else:
@@ -758,12 +1041,10 @@ def handle_list_tasks(user_id: str, params: dict):
 
         print(f"   🔍 Query: {query}")
 
-        # Get tasks
         tasks = list(db.tasks.find(query).limit(50))
 
         print(f"   ✅ Found {len(tasks)} tasks")
 
-        # Format for display
         formatted_tasks = []
         for task in tasks:
             formatted_tasks.append(
@@ -790,6 +1071,57 @@ def handle_list_tasks(user_id: str, params: dict):
         import traceback
 
         traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def handle_list_sprints(user_id: str, params: dict):
+    """Handle sprint listing"""
+    try:
+        project_id = params.get("project_id")
+
+        if not project_id and params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                project_id = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found",
+                }
+
+        if not project_id:
+            return {"success": False, "error": "Project ID or name is required"}
+
+        sprints = list(db.sprints.find({"project_id": project_id}))
+
+        formatted_sprints = []
+        for sprint in sprints:
+            formatted_sprints.append(
+                {
+                    "id": str(sprint["_id"]),
+                    "name": sprint.get("name", ""),
+                    "status": sprint.get("status", ""),
+                    "start_date": str(sprint.get("start_date", "")),
+                    "end_date": str(sprint.get("end_date", "")),
+                    "goal": sprint.get("goal", ""),
+                }
+            )
+
+        return {
+            "success": True,
+            "action": "list_sprints",
+            "sprints": formatted_sprints,
+            "count": len(formatted_sprints),
+            "message": f"Found {len(formatted_sprints)} sprint(s)",
+        }
+
+    except Exception as e:
+        print(f"Error listing sprints: {str(e)}")
         return {"success": False, "error": str(e)}
 
 
@@ -827,6 +1159,237 @@ def handle_list_projects(user_id: str):
         return {"success": False, "error": str(e)}
 
 
+def handle_create_project(user_id: str, params: dict):
+    """Handle project creation (Admin only)"""
+    try:
+        from controllers import project_controller
+
+        project_data = {
+            "name": params.get("name"),
+            "description": params.get("description", ""),
+        }
+
+        body = json.dumps(project_data)
+        response = project_controller.create_project(body, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to create project"),
+            }
+
+        result = (
+            json.loads(response["body"])
+            if isinstance(response["body"], str)
+            else response["body"]
+        )
+
+        return {
+            "success": True,
+            "action": "create_project",
+            "result": result.get("project"),
+            "message": f"✅ Project '{params.get('name')}' created successfully!",
+        }
+
+    except Exception as e:
+        print(f"Error creating project: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_add_member(user_id: str, params: dict):
+    """Handle adding member to project"""
+    try:
+        project_id = params.get("project_id")
+
+        if not project_id and params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "user_id": user_id,
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                project_id = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found or you don't own it",
+                }
+
+        if not project_id:
+            return {"success": False, "error": "Project ID or name is required"}
+
+        email = params.get("email")
+        if not email:
+            return {"success": False, "error": "Email is required"}
+
+        body = json.dumps({"email": email})
+        response = member_controller.add_project_member(body, project_id, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to add member"),
+            }
+
+        result = (
+            json.loads(response["body"])
+            if isinstance(response["body"], str)
+            else response["body"]
+        )
+
+        return {
+            "success": True,
+            "action": "add_member",
+            "result": result.get("member"),
+            "message": result.get("message", f"✅ Member {email} added successfully!"),
+        }
+
+    except Exception as e:
+        print(f"Error adding member: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_remove_member(user_id: str, params: dict):
+    """Handle removing member from project"""
+    try:
+        project_id = params.get("project_id")
+
+        if not project_id and params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "user_id": user_id,
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                project_id = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found or you don't own it",
+                }
+
+        if not project_id:
+            return {"success": False, "error": "Project ID or name is required"}
+
+        # Find member by email
+        member_email = params.get("email")
+        member_user_id = params.get("user_id")
+
+        if member_email and not member_user_id:
+            member = User.find_by_email(member_email)
+            if member:
+                member_user_id = str(member["_id"])
+            else:
+                return {"success": False, "error": f"User '{member_email}' not found"}
+
+        if not member_user_id:
+            return {"success": False, "error": "User email or ID is required"}
+
+        response = member_controller.remove_project_member(
+            project_id, member_user_id, user_id
+        )
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to remove member"),
+            }
+
+        return {
+            "success": True,
+            "action": "remove_member",
+            "message": "✅ Member removed successfully!",
+        }
+
+    except Exception as e:
+        print(f"Error removing member: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_list_members(user_id: str, params: dict):
+    """Handle listing project members"""
+    try:
+        project_id = params.get("project_id")
+
+        if not project_id and params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                project_id = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found",
+                }
+
+        if not project_id:
+            return {"success": False, "error": "Project ID or name is required"}
+
+        response = member_controller.get_project_members(project_id, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to list members"),
+            }
+
+        result = (
+            json.loads(response["body"])
+            if isinstance(response["body"], str)
+            else response["body"]
+        )
+
+        members = result.get("members", [])
+        formatted_members = []
+        for member in members:
+            formatted_members.append(
+                {
+                    "name": member.get("name", ""),
+                    "email": member.get("email", ""),
+                    "role": member.get("role", "Member"),
+                    "is_owner": member.get("is_owner", False),
+                }
+            )
+
+        return {
+            "success": True,
+            "action": "list_members",
+            "members": formatted_members,
+            "count": len(formatted_members),
+            "message": f"Found {len(formatted_members)} member(s)",
+        }
+
+    except Exception as e:
+        print(f"Error listing members: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
 # ============================================================================
 # MAIN MESSAGE HANDLER
 # ============================================================================
@@ -838,7 +1401,7 @@ def send_message(
     """
     Send a message and get AI response with intelligent data-driven insights
     🆕 ENHANCED: Now analyzes user's MongoDB data to provide personalized responses
-    🤖 NEW: Supports task automation commands
+    🤖 NEW: Supports comprehensive task automation commands
     """
     try:
         print(f"\n🤖 Processing message for conversation {conversation_id}")
@@ -918,6 +1481,15 @@ def send_message(
                             f"\n_...and {command_result['count'] - 10} more tasks_\n"
                         )
 
+                # Add sprint list if present
+                if command_result.get("sprints"):
+                    ai_content += f"\n\n**Sprints ({command_result['count']}):**\n"
+                    for sprint in command_result["sprints"]:
+                        ai_content += f"- **{sprint['name']}** ({sprint['status']})\n"
+                        ai_content += (
+                            f"  {sprint['start_date']} to {sprint['end_date']}\n"
+                        )
+
                 # Add project list if present
                 if command_result.get("projects"):
                     ai_content += f"\n\n**Projects ({command_result['count']}):**\n"
@@ -925,6 +1497,16 @@ def send_message(
                         ai_content += f"- **{project['name']}** ({project['role']})\n"
                         if project.get("description"):
                             ai_content += f"  _{project['description']}_\n"
+
+                # Add member list if present
+                if command_result.get("members"):
+                    ai_content += f"\n\n**Members ({command_result['count']}):**\n"
+                    for member in command_result["members"]:
+                        role_badge = "👑" if member.get("is_owner") else "👤"
+                        ai_content += (
+                            f"- {role_badge} **{member['name']}** ({member['email']})\n"
+                        )
+                        ai_content += f"  Role: {member['role']}\n"
             else:
                 ai_content = f"❌ **Command failed:** {command_result.get('error', 'Unknown error')}\n\n"
                 ai_content += "Please check your command and try again. You can ask me for help with the correct format."
@@ -979,7 +1561,7 @@ def send_message(
                 f"      - Velocity: {user_data['velocity']['completed_last_30_days']} tasks/30d"
             )
         else:
-            system_prompt = None  # Will use default
+            system_prompt = None
             print(f"   ⚠️ Using default system prompt (no user data available)")
 
         # Prepare messages for API with enhanced context
@@ -997,7 +1579,6 @@ def send_message(
             return stream_ai_response(conversation_id, api_messages)
         else:
             print(f"   🚀 Calling Azure OpenAI with data-driven context...")
-            # Get AI response (GPT-5.2-chat uses default temperature=1.0)
             response = chat_completion(messages=api_messages, max_tokens=2000)
             print(f"   ✅ Got AI response: {response['content'][:100]}...")
 
@@ -1015,7 +1596,6 @@ def send_message(
 
             # Update conversation title if it's the first message
             if conversation.get("message_count", 0) <= 2:
-                # Auto-generate title from first user message
                 title = content[:50] + ("..." if len(content) > 50 else "")
                 AIConversation.update_title(conversation_id, title)
 
@@ -1032,8 +1612,8 @@ def send_message(
                     "tokens_used": response.get("tokens", {}).get("total", 0),
                 },
                 "tokens": response.get("tokens", {}),
-                "insights": insights,  # 🆕 Key insights for UI
-                "user_data_summary": {  # 🆕 Summary stats for UI
+                "insights": insights,
+                "user_data_summary": {
                     "tasks_total": user_data["stats"]["tasks"]["total"]
                     if user_data
                     else 0,
@@ -1063,7 +1643,7 @@ def send_message(
 
 
 # ============================================================================
-# STREAMING & OTHER FEATURES
+# STREAMING & OTHER FEATURES (Keep existing implementations)
 # ============================================================================
 
 
@@ -1326,3 +1906,455 @@ def get_user_insights(user_id: str):
 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ADDITIONAL BULK OPERATIONS - ADD THESE TO YOUR CONTROLLER
+# ============================================================================
+
+
+def handle_bulk_approve_close(user_id: str, params: dict):
+    """Handle bulk approve and close operations"""
+    try:
+        print(f"   📋 Bulk approve and close tasks...")
+
+        # Find all tasks pending approval assigned to user
+        query = {
+            "assignee_id": user_id,
+            "status": {"$in": ["Dev Complete", "Testing", "Pending Approval"]},
+        }
+
+        # Filter by project if specified
+        if params.get("project_id"):
+            query["project_id"] = params["project_id"]
+        elif params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                query["project_id"] = str(project["_id"])
+
+        # Find all tasks matching criteria
+        tasks = list(db.tasks.find(query))
+
+        if not tasks:
+            return {
+                "success": True,
+                "action": "bulk_approve_close",
+                "count": 0,
+                "message": "No tasks found pending approval",
+            }
+
+        # Update all tasks to Closed
+        updated_count = 0
+        closed_tasks = []
+
+        for task in tasks:
+            task_id = str(task["_id"])
+
+            # Update task to Closed
+            update_data = {"status": "Closed"}
+            body = json.dumps(update_data)
+
+            response = task_controller.update_task(body, task_id, user_id)
+
+            if response.get("statusCode", 200) < 400:
+                updated_count += 1
+                closed_tasks.append(
+                    {
+                        "ticket_id": task.get("ticket_id", ""),
+                        "title": task.get("title", ""),
+                        "old_status": task.get("status", ""),
+                        "new_status": "Closed",
+                    }
+                )
+
+        return {
+            "success": True,
+            "action": "bulk_approve_close",
+            "count": updated_count,
+            "tasks": closed_tasks,
+            "message": f"✅ Approved and closed {updated_count} task(s)",
+        }
+
+    except Exception as e:
+        print(f"Error in bulk approve/close: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def handle_bulk_status_update(user_id: str, params: dict):
+    """Handle bulk status updates"""
+    try:
+        print(f"   📋 Bulk status update...")
+
+        # Get target status
+        target_status = params.get("target_status", "Closed")
+
+        # Build query
+        query = {}
+
+        # Filter by current status
+        if params.get("current_status"):
+            if isinstance(params["current_status"], list):
+                query["status"] = {"$in": params["current_status"]}
+            else:
+                query["status"] = params["current_status"]
+
+        # Filter by assignee
+        if params.get("assignee") == "me":
+            query["assignee_id"] = user_id
+
+        # Filter by project
+        if params.get("project_id"):
+            query["project_id"] = params["project_id"]
+        elif params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                query["project_id"] = str(project["_id"])
+
+        # Find matching tasks
+        tasks = list(db.tasks.find(query))
+
+        if not tasks:
+            return {
+                "success": True,
+                "action": "bulk_status_update",
+                "count": 0,
+                "message": "No tasks found matching criteria",
+            }
+
+        # Update all tasks
+        updated_count = 0
+        updated_tasks = []
+
+        for task in tasks:
+            task_id = str(task["_id"])
+
+            update_data = {"status": target_status}
+            body = json.dumps(update_data)
+
+            response = task_controller.update_task(body, task_id, user_id)
+
+            if response.get("statusCode", 200) < 400:
+                updated_count += 1
+                updated_tasks.append(
+                    {
+                        "ticket_id": task.get("ticket_id", ""),
+                        "title": task.get("title", ""),
+                        "old_status": task.get("status", ""),
+                        "new_status": target_status,
+                    }
+                )
+
+        return {
+            "success": True,
+            "action": "bulk_status_update",
+            "count": updated_count,
+            "tasks": updated_tasks,
+            "message": f"✅ Updated {updated_count} task(s) to {target_status}",
+        }
+
+    except Exception as e:
+        print(f"Error in bulk status update: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================================
+# UPDATE THESE FUNCTIONS IN YOUR CONTROLLER
+# ============================================================================
+
+
+def detect_task_command(message: str) -> bool:
+    """Detect if message contains a task automation command"""
+    command_keywords = [
+        # Task operations
+        "create task",
+        "create a task",
+        "make a task",
+        "add task",
+        "new task",
+        "assign task",
+        "assign to",
+        "give task to",
+        "update task",
+        "change status",
+        "mark as",
+        "set status",
+        "list tasks",
+        "show tasks",
+        "my tasks",
+        "get tasks",
+        "find tasks",
+        "list all tasks",
+        "show all tasks",
+        "tasks in",
+        "tasks for",
+        "update priority",
+        "change priority",
+        "set priority",
+        # Bulk operations - NEW
+        "approve all",
+        "close all",
+        "approve and close",
+        "bulk approve",
+        "approve pending",
+        "close pending",
+        "approve all pending",
+        "mark all as",
+        "update all to",
+        "change all to",
+        # Sprint operations
+        "create sprint",
+        "start sprint",
+        "new sprint",
+        "make sprint",
+        "add to sprint",
+        "add task to sprint",
+        "put in sprint",
+        "remove from sprint",
+        "start the sprint",
+        "complete sprint",
+        "end sprint",
+        "finish sprint",
+        "list sprints",
+        "show sprints",
+        # Project operations
+        "list projects",
+        "show projects",
+        "my projects",
+        "get projects",
+        "create project",
+        "new project",
+        "make project",
+        # Member operations
+        "add member",
+        "add user",
+        "invite member",
+        "add to project",
+        "add as member",
+        "add someone",
+        "invite to project",
+        "remove member",
+        "remove user",
+        "kick member",
+        "list members",
+        "show members",
+        "project members",
+    ]
+
+    message_lower = message.lower()
+    return any(keyword in message_lower for keyword in command_keywords)
+
+
+def parse_task_command(command: str, context: dict = None):
+    """Use Azure OpenAI to parse natural language commands into structured actions"""
+    try:
+        system_prompt = """You are a task management command parser. Extract the action and parameters from user commands.
+
+Available actions:
+- create_task: Create a new task
+- assign_task: Assign a task to someone
+- update_task: Update task properties
+- bulk_approve_close: Approve and close all pending tasks
+- bulk_status_update: Update status for multiple tasks
+- create_sprint: Create a new sprint
+- start_sprint: Start a sprint (make it active)
+- complete_sprint: Complete a sprint
+- add_task_to_sprint: Add task to a sprint
+- remove_task_from_sprint: Remove task from sprint
+- list_tasks: List tasks with filters
+- list_sprints: List sprints for a project
+- list_projects: List user's projects
+- create_project: Create a new project
+- add_member: Add member to project
+- remove_member: Remove member from project
+- list_members: List project members
+
+Return ONLY a JSON object with this structure:
+{
+    "action": "action_name",
+    "params": {
+        // relevant parameters
+    }
+}
+
+For bulk_approve_close, extract:
+- project_id or project_name (optional - if not specified, applies to all user's tasks)
+- current_status (optional - defaults to ["Dev Complete", "Testing", "Pending Approval"])
+
+For bulk_status_update, extract:
+- target_status (required - e.g., "Closed", "Done")
+- current_status (optional - filter which tasks to update)
+- project_id or project_name (optional)
+- assignee (optional - "me" for current user)
+
+For add_member, extract:
+- email (required)
+- project_id or project_name (required)
+
+Examples:
+"Approve all pending tasks and close them"
+→ {"action": "bulk_approve_close", "params": {}}
+
+"Approve all pending approve and close tasks from my side"
+→ {"action": "bulk_approve_close", "params": {}}
+
+"Close all testing tasks in DOIT project"
+→ {"action": "bulk_status_update", "params": {"target_status": "Closed", "current_status": "Testing", "project_name": "DOIT"}}
+
+"Mark all my Dev Complete tasks as Done"
+→ {"action": "bulk_status_update", "params": {"target_status": "Done", "current_status": "Dev Complete", "assignee": "me"}}
+
+"Add kamlesh@gmail.com to my DOIT project as member"
+→ {"action": "add_member", "params": {"email": "kamlesh@gmail.com", "project_name": "DOIT"}}
+
+"Add john@example.com to Project Alpha"
+→ {"action": "add_member", "params": {"email": "john@example.com", "project_name": "Project Alpha"}}
+"""
+
+        user_message = f"Command: {command}"
+        if context:
+            user_message += f"\nContext: {json.dumps(context)}"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+
+        response = chat_completion(messages=messages, max_tokens=500)
+
+        # Parse JSON response
+        content = response["content"].strip()
+        content = re.sub(r"```json\s*|\s*```", "", content).strip()
+
+        parsed = json.loads(content)
+
+        print(f"   📋 Parsed command: {parsed}")
+
+        return {"success": True, **parsed}
+
+    except Exception as e:
+        print(f"Error parsing command: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": f"Failed to parse command: {str(e)}"}
+
+
+def execute_task_command(user_id: str, command: str, context: dict = None):
+    """Execute task-related commands from AI Assistant"""
+    print(f"\n{'=' * 60}")
+    print(f"🎯 EXECUTING TASK COMMAND")
+    print(f"{'=' * 60}")
+    print(f"User ID: {user_id}")
+    print(f"Command: {command}")
+    print(f"Context: {context}")
+
+    try:
+        # Get user info
+        user = User.find_by_id(user_id)
+        if not user:
+            return {"success": False, "error": "User not found"}
+
+        user_email = user.get("email")
+        user_role = user.get("role", "member").lower()
+
+        print(f"   👤 User: {user_email} (Role: {user_role})")
+
+        # Parse command using LLM
+        parsed_command = parse_task_command(command, context)
+
+        if not parsed_command["success"]:
+            return parsed_command
+
+        action = parsed_command["action"]
+        params = parsed_command["params"]
+
+        print(f"   ⚡ Action: {action}")
+        print(f"   📝 Params: {params}")
+
+        # Route to appropriate handler
+        if action == "create_task":
+            return handle_create_task(user_email, user_id, params)
+
+        elif action == "assign_task":
+            return handle_assign_task(user_email, user_id, params)
+
+        elif action == "update_task":
+            return handle_update_task(user_email, user_id, params)
+
+        elif action == "bulk_approve_close":
+            return handle_bulk_approve_close(user_id, params)
+
+        elif action == "bulk_status_update":
+            return handle_bulk_status_update(user_id, params)
+
+        elif action == "create_sprint":
+            if user_role != "admin":
+                return {
+                    "success": False,
+                    "error": "Only Admin users can create sprints",
+                }
+            return handle_create_sprint(user_email, user_id, params)
+
+        elif action == "start_sprint":
+            return handle_start_sprint(user_id, params)
+
+        elif action == "complete_sprint":
+            return handle_complete_sprint(user_id, params)
+
+        elif action == "add_task_to_sprint":
+            return handle_add_task_to_sprint(user_email, user_id, params)
+
+        elif action == "remove_task_from_sprint":
+            return handle_remove_task_from_sprint(user_id, params)
+
+        elif action == "list_tasks":
+            return handle_list_tasks(user_id, params)
+
+        elif action == "list_sprints":
+            return handle_list_sprints(user_id, params)
+
+        elif action == "list_projects":
+            return handle_list_projects(user_id)
+
+        elif action == "create_project":
+            if user_role not in ["admin", "super-admin"]:
+                return {
+                    "success": False,
+                    "error": "Only Admin users can create projects",
+                }
+            return handle_create_project(user_id, params)
+
+        elif action == "add_member":
+            return handle_add_member(user_id, params)
+
+        elif action == "remove_member":
+            return handle_remove_member(user_id, params)
+
+        elif action == "list_members":
+            return handle_list_members(user_id, params)
+
+        else:
+            return {"success": False, "error": f"Unknown action: {action}"}
+
+    except Exception as e:
+        print(f"❌ Error executing task command: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": f"Failed to execute command: {str(e)}"}
