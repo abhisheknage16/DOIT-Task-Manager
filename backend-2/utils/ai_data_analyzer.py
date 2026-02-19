@@ -294,7 +294,7 @@ def build_ai_system_prompt(user_data: dict) -> str:
     Build comprehensive system prompt with user's data context
     This helps AI provide personalized, data-driven insights
     """
-    if not user_data:
+    if not user_data: 
         return """You are DOIT AI Assistant, a helpful and intelligent AI integrated into the DOIT project management system.
 
 You help users with:

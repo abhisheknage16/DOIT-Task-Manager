@@ -925,3 +925,165 @@
 .ai-messages-container::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOCAL AGENT — append these rules to AIAssistantPage.css
+   Green (#059669 / Emerald) accent throughout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Three-tab switcher (override previous 2-tab layout) ────────────────── */
+.ai-tab-switcher {
+  gap: 3px;
+  padding: 3px;
+}
+
+.ai-tab-btn.local.active {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35);
+}
+
+/* ── New chat button — Local variant ────────────────────────────────────── */
+.new-chat-btn.local {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+}
+
+.new-chat-btn.local:hover {
+  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
+}
+
+/* ── Conversation item — Local active state ─────────────────────────────── */
+.conversation-item.active.local {
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.3);
+}
+
+/* ── Engine badge — Local ───────────────────────────────────────────────── */
+.ai-engine-badge.local {
+  background: rgba(5, 150, 105, 0.1);
+  color: #059669;
+}
+
+/* ── Chat header — Local variant ────────────────────────────────────────── */
+.ai-chat-header.local {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.05) 0%, rgba(4, 120, 87, 0.05) 100%);
+  border-bottom-color: rgba(5, 150, 105, 0.15);
+}
+
+.ai-chat-header.local .ai-chat-title {
+  color: #047857;
+}
+
+/* ── Reset btn — Local variant ──────────────────────────────────────────── */
+.ai-reset-btn.local {
+  border-color: #059669;
+  color: #059669;
+}
+
+.ai-reset-btn.local:hover {
+  background: rgba(5, 150, 105, 0.1);
+}
+
+/* ── Status dot — Local / offline ───────────────────────────────────────── */
+.ai-status-dot.local {
+  background: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+}
+
+.ai-status-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+  animation: none;
+}
+
+.ai-status-badge.offline {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* ── Empty state — Local ────────────────────────────────────────────────── */
+.ai-empty-icon.local {
+  background: rgba(5, 150, 105, 0.08);
+  opacity: 0.85;
+}
+
+/* ── Offline banner in empty state ─────────────────────────────────────── */
+.ai-local-offline-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 12px 0 20px;
+  max-width: 480px;
+  color: #b91c1c;
+  font-size: 13px;
+  text-align: left;
+}
+
+.ai-local-offline-banner p {
+  margin: 4px 0 0;
+  color: #6b7280;
+}
+
+.ai-local-offline-banner code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Suggestion chips — Local ───────────────────────────────────────────── */
+.ai-suggestion-chip.local:hover {
+  border-color: #059669;
+  background: rgba(5, 150, 105, 0.06);
+}
+
+/* ── Message avatar — Local assistant ───────────────────────────────────── */
+.ai-message-avatar.local {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+}
+
+/* ── Textarea — Local focus ─────────────────────────────────────────────── */
+.ai-textarea.local:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+}
+
+/* ── Send button — Local variant ────────────────────────────────────────── */
+.ai-send-btn.local {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.ai-send-btn.local:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+}
+
+/* ── Local info strip above input ───────────────────────────────────────── */
+.ai-local-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #059669;
+  background: rgba(5, 150, 105, 0.06);
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+}
+
+/* ── RAG badge on local messages ────────────────────────────────────────── */
+.ai-rag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #059669;
+  background: rgba(5, 150, 105, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 4px;
+}
