@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")  # or mistral, gemma2, etc.
+OLLAMA_MODEL = os.getenv(
+    "OLLAMA_MODEL", "qwen2.5-coder:1.5b"
+)  # or mistral, gemma2, etc.
 OLLAMA_EMBED_MODEL = os.getenv(
     "OLLAMA_EMBED_MODEL", "nomic-embed-text"
 )  # local embedding model
@@ -162,6 +164,8 @@ def index_user_context(user_id: str, context: Dict[str, Any]) -> bool:
     into ChromaDB so the RAG query engine can retrieve relevant chunks.
 
     Called before each message so the index always has fresh data.
+    Returns False if RAG indexing fails, but this is non-fatal — the agent
+    will still work without RAG.
     """
     try:
         from llama_index.core import (
@@ -247,8 +251,20 @@ def index_user_context(user_id: str, context: Dict[str, Any]) -> bool:
         logger.info(f"📚 Indexed {len(docs)} context docs for user {user_id}")
         return True
 
+    except ImportError as exc:
+        # ChromaDB dependency issue (Pydantic/Python compatibility)
+        logger.warning(
+            f"⚠️  RAG unavailable (ChromaDB import failed): {exc}. "
+            "Agent will work without vector search. "
+            "Fix: pip install --upgrade chromadb llama-index"
+        )
+        return False
     except Exception as exc:
-        logger.error(f"Failed to index user context: {exc}", exc_info=True)
+        # Other runtime errors
+        logger.warning(
+            f"⚠️  RAG indexing failed (non-fatal): {type(exc).__name__}: {exc}. "
+            "Agent will work without vector search."
+        )
         return False
 
 

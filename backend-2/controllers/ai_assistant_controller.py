@@ -1574,9 +1574,16 @@ def send_message(
         api_messages = truncate_context(api_messages, max_tokens=8000)
         print(f"   ✂️ Truncated to {len(api_messages)} messages")
 
-        # Handle streaming vs non-streaming
+        # Handle streaming vs non-streaming (streaming enabled for better UX)
         if stream:
-            return stream_ai_response(conversation_id, api_messages)
+            return stream_ai_response(
+                conversation_id=conversation_id,
+                api_messages=api_messages,
+                user_message_id=user_message_id,
+                user_content=content,
+                user_data=user_data,
+                conversation_message_count=conversation.get("message_count", 0)
+            )
         else:
             print(f"   🚀 Calling Azure OpenAI with data-driven context...")
             response = chat_completion(messages=api_messages, max_tokens=2000)
@@ -1647,28 +1654,55 @@ def send_message(
 # ============================================================================
 
 
-def stream_ai_response(conversation_id: str, api_messages: List[dict]):
-    """Stream AI response chunks"""
+def stream_ai_response(
+    conversation_id: str,
+    api_messages: List[dict],
+    user_message_id: str = None,
+    user_content: str = None,
+    user_data: dict = None,
+    conversation_message_count: int = 0
+):
+    """
+    Stream AI response chunks - COMPATIBLE with existing frontend
+    
+    🚀 OPTIMIZED: Uses existing SSE format for backwards compatibility
+    """
 
     async def generate():
         try:
+            # Stream AI response chunks as they arrive (original format)
             full_content = ""
             for chunk in chat_completion_streaming(api_messages):
                 full_content += chunk
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
 
+            # Save complete AI response
             ai_message_id = AIMessage.create(
                 conversation_id=conversation_id, role="assistant", content=full_content
             )
+            
+            # Update conversation title if it's the first message
+            if user_content and conversation_message_count <= 2:
+                title = user_content[:50] + ("..." if len(user_content) > 50 else "")
+                AIConversation.update_title(conversation_id, title)
+            
+            # Emit completion (original format)
             yield f"data: {json.dumps({'done': True, 'message_id': str(ai_message_id)})}\n\n"
+            
         except Exception as e:
-            print(f"Error in stream: {str(e)}")
+            print(f"❌ Error in stream: {str(e)}")
+            import traceback
+            traceback.print_exc()
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
     )
 
 

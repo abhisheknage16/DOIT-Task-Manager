@@ -2079,7 +2079,14 @@ const AIAssistantPage = () => {
 
   // ── Load messages when active conversation changes ────────────────────────
   useEffect(() => {
-    if (activeConversation) { setMessages([]); loadDoitMessages(activeConversation._id); }
+    if (activeConversation) { 
+      // 🎯 Only clear and reload if we don't have optimistic messages
+      // (Prevents clearing user message that was just added)
+      if (messages.length === 0 || !messages.some(m => m._id?.startsWith('temp-'))) {
+        setMessages([]); 
+        loadDoitMessages(activeConversation._id); 
+      }
+    }
     else setMessages([]);
   }, [activeConversation?._id]); // eslint-disable-line
 
@@ -2118,7 +2125,7 @@ const AIAssistantPage = () => {
   // ─────────────────────────────────────────────────────────────────────────
   // DOIT-AI actions
   // ─────────────────────────────────────────────────────────────────────────
-  const createNewDoitConversation = async () => {
+  const createNewDoitConversation = async (skipClearMessages = false) => {
     try {
       const r = await fetch(`${API_BASE}/api/ai-assistant/conversations`, {
         method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ title: 'New Conversation' })
@@ -2127,7 +2134,8 @@ const AIAssistantPage = () => {
       if (d.success) {
         setConversations(p => [d.conversation, ...p]);
         setActiveConversation(d.conversation);
-        setMessages([]);
+        // 🎯 Don't clear messages if we're about to add one (optimistic update)
+        if (!skipClearMessages) setMessages([]);
         return d.conversation;
       }
     } catch (e) { console.error(e); return null; }
@@ -2136,10 +2144,27 @@ const AIAssistantPage = () => {
   const sendDoitMessage = async () => {
     if (!inputText.trim() || isLoading) return;
     const messageContent = inputText;
-    let conv = activeConversation || await createNewDoitConversation();
-    if (!conv) return;
-    setMessages(p => [...p, { role: 'user', content: messageContent, created_at: new Date().toISOString() }]);
-    setInputText(''); setIsLoading(true); setIsTyping(true);
+    
+    // 🎯 OPTIMIZATION: Add user message IMMEDIATELY before any async operations
+    // This ensures the UI updates instantly, hiding the welcome screen
+    const optimisticUserMessage = { 
+      _id: `temp-${Date.now()}`, 
+      role: 'user', 
+      content: messageContent, 
+      created_at: new Date().toISOString() 
+    };
+    setMessages(p => [...p, optimisticUserMessage]);
+    setInputText('');
+    
+    // Create conversation if needed (will not clear messages now)
+    let conv = activeConversation || await createNewDoitConversation(true); // Pass flag to skip clearing
+    if (!conv) {
+      // Rollback optimistic message on failure
+      setMessages(p => p.filter(m => m._id !== optimisticUserMessage._id));
+      return;
+    }
+    
+    setIsLoading(true); setIsTyping(true);
     try {
       const r = await fetch(`${API_BASE}/api/ai-assistant/conversations/${conv._id}/messages`, {
         method: 'POST', headers: getAuthHeaders(),
@@ -2148,6 +2173,7 @@ const AIAssistantPage = () => {
       const d = await r.json();
       setIsTyping(false);
       if (d.success && d.message) {
+        // Keep optimistic user message, just add AI response
         setMessages(p => [...p, { ...d.message, insights: d.insights, user_data_summary: d.user_data_summary, command_result: d.command_result }]);
         loadDoitConversations();
       }
@@ -2160,17 +2186,29 @@ const AIAssistantPage = () => {
   const generateImage = async () => {
     if (!inputText.trim() || isLoading) return;
     const prompt = inputText;
-    let conv = activeConversation || await createNewDoitConversation();
-    if (!conv) return;
-    setMessages(p => [...p, { role: 'user', content: `Generate image: ${prompt}`, created_at: new Date().toISOString() }]);
-    setInputText(''); setIsLoading(true); setIsTyping(true);
+    
+    // 🎯 Show user message immediately
+    const optimisticMsg = { _id: `temp-${Date.now()}`, role: 'user', content: `Generate image: ${prompt}`, created_at: new Date().toISOString() };
+    setMessages(p => [...p, optimisticMsg]);
+    setInputText('');
+    
+    let conv = activeConversation || await createNewDoitConversation(true);
+    if (!conv) {
+      setMessages(p => p.filter(m => m._id !== optimisticMsg._id));
+      return;
+    }
+    
+    setIsLoading(true); setIsTyping(true);
     try {
       const r = await fetch(`${API_BASE}/api/ai-assistant/conversations/${conv._id}/generate-image`, {
         method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ prompt })
       });
       const d = await r.json();
       setIsTyping(false);
-      if (d.success) { setMessages(p => [...p, d.message]); loadDoitConversations(); }
+      if (d.success) { 
+        setMessages(p => [...p.filter(m => m._id !== optimisticMsg._id), d.message]); 
+        loadDoitConversations(); 
+      }
     } catch (e) { console.error(e); setIsTyping(false); }
     finally { setIsLoading(false); }
   };
@@ -2178,9 +2216,17 @@ const AIAssistantPage = () => {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || isLoading) return;
-    let conv = activeConversation || await createNewDoitConversation();
-    if (!conv) return;
-    setMessages(p => [...p, { role: 'user', content: `Uploaded file: ${file.name}`, created_at: new Date().toISOString() }]);
+    
+    // 🎯 Show user message immediately
+    const optimisticMsg = { _id: `temp-${Date.now()}`, role: 'user', content: `Uploaded file: ${file.name}`, created_at: new Date().toISOString() };
+    setMessages(p => [...p, optimisticMsg]);
+    
+    let conv = activeConversation || await createNewDoitConversation(true);
+    if (!conv) {
+      setMessages(p => p.filter(m => m._id !== optimisticMsg._id));
+      return;
+    }
+    
     setIsLoading(true); setIsTyping(true);
     try {
       const formData = new FormData();
@@ -2193,7 +2239,7 @@ const AIAssistantPage = () => {
       const d = await r.json();
       setIsTyping(false);
       if (d.success) {
-        if (d.ai_message_id) setMessages(p => [...p, { role: 'assistant', content: d.message, created_at: new Date().toISOString() }]);
+        if (d.ai_message_id) setMessages(p => [...p.filter(m => m._id !== optimisticMsg._id), { role: 'assistant', content: d.message, created_at: new Date().toISOString() }]);
         setUploadedFile(file.name); loadDoitConversations();
       } else throw new Error(d.message || 'Upload failed');
     } catch (e) {
