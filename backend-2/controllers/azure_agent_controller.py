@@ -132,9 +132,11 @@ def send_message_to_foundry_agent(
                 velocity = user_data.get("velocity", {})
                 blockers = user_data.get("blockers", {})
 
+                # ⭐ IMPORTANT: Include email and role for RBAC
                 context = {
-                    "user_name": user_data["user"]["name"],
-                    "user_role": user_data["user"]["role"],
+                    "authenticated_user_name": user_data["user"]["name"],
+                    "authenticated_user_email": user_data["user"]["email"],
+                    "authenticated_user_role": user_data["user"]["role"],
                     "tasks_total": tasks.get("total", 0),
                     "tasks_overdue": tasks.get("overdue", 0),
                     "tasks_due_soon": tasks.get("dueSoon", 0),
@@ -156,8 +158,9 @@ def send_message_to_foundry_agent(
                     ],
                 }
                 print(
-                    f"   📊 Enriched with context: {tasks.get('total')} tasks, "
-                    f"{tasks.get('overdue')} overdue"
+                    f"   📊 Enriched with context: {user_data['user']['email']} "
+                    f"(Role: {user_data['user']['role'].upper()}), "
+                    f"{tasks.get('total')} tasks, {tasks.get('overdue')} overdue"
                 )
 
         # ── Get / create Foundry thread for this user ────────────────────
