@@ -71,6 +71,6 @@ jobs:
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
-          app-name: 'DOIT-backend'
+          app-name: 'DOIT-py-backend'
           slot-name: 'Production'
           
