@@ -974,3 +974,120 @@ export const profileAPI = {
   },
 };
 export { agentAPI };
+// ============================================================================
+// Global Insights API - ADD TO frontend/src/services/api.js
+// ============================================================================
+
+// Add this section after your existing API objects (e.g., after dataVizAPI)
+
+/**
+ * Global Insights API
+ * YouTube Intelligence Multi-Agent System
+ * LangChain Architecture: Transcript Agent → Blog Agent → PDF Generator
+ */
+export const globalInsightsAPI = {
+  /**
+   * Analyze YouTube video - Full multi-agent processing
+   * @param {string} youtubeUrl - YouTube video URL
+   * @param {string} question - Optional analysis focus question
+   * @returns {Promise} Complete intelligence report
+   */
+  analyzeYoutubeVideo: async (youtubeUrl, question = '') => {
+    const response = await fetch(`${API_BASE_URL}/api/global-insights/analyze-youtube`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        youtube_url: youtubeUrl,
+        question: question
+      })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || data.error || 'Failed to analyze YouTube video');
+    }
+    
+    return data;
+  },
+
+  /**
+   * Export YouTube intelligence as PDF report
+   * @param {string} youtubeUrl - YouTube video URL
+   * @param {string} question - Optional analysis focus question
+   * @returns {Promise} Triggers PDF download
+   */
+  exportYoutubePdf: async (youtubeUrl, question = '') => {
+    const response = await fetch(`${API_BASE_URL}/api/global-insights/export-youtube-pdf`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        youtube_url: youtubeUrl,
+        question: question
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to export PDF');
+    }
+    
+    // Download PDF
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `youtube_insights_${Date.now()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    return { success: true, message: 'PDF downloaded successfully' };
+  },
+
+  /**
+   * Check Global Insights system health
+   * @returns {Promise} Health status of multi-agent system
+   */
+  checkHealth: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/global-insights/health`, {
+      headers: getAuthHeaders()
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || 'Health check failed');
+    }
+    
+    return data;
+  },
+
+  /**
+   * Validate YouTube URL format
+   * @param {string} url - URL to validate
+   * @returns {boolean} True if valid YouTube URL
+   */
+  isValidYoutubeUrl: (url) => {
+    const pattern = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/;
+    return pattern.test(url);
+  },
+
+  /**
+   * Extract video ID from YouTube URL
+   * @param {string} url - YouTube URL
+   * @returns {string|null} Video ID or null if invalid
+   */
+  extractVideoId: (url) => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    
+    return null;
+  }
+};

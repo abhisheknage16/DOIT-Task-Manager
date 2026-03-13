@@ -1,6 +1,6 @@
 """
 LangGraph AI Agent Utilities
-Stack: Azure OpenAI + LangGraph + LangChain
+Stack: Groq + LangGraph + LangChain
 
 Provides advanced agentic automation with:
 - Multi-step reasoning
@@ -13,8 +13,8 @@ import os
 import logging
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
-from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_groq import ChatGroq
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
@@ -23,10 +23,12 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
+GROQ_API_KEY = os.getenv("AZURE_OPENAI_KEY")
+# Groq decommissioned `llama-3.1-70b-versatile`; replacement is `llama-3.3-70b-versatile`.
+GROQ_MODEL = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+# Optional comma-separated fallback list (only used if the primary model fails).
+# Example: GROQ_FALLBACK_MODELS=qwen/qwen3-32b,llama-3.1-8b-instant
+GROQ_FALLBACK_MODELS = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 
 LANGGRAPH_AGENT_TIMEOUT = int(os.getenv("LANGGRAPH_AGENT_TIMEOUT", "120"))
 
@@ -80,7 +82,7 @@ You have access to advanced tools for:
 Remember: You can see the user's current tasks, projects, and team context. Use this information to provide personalized, context-aware assistance."""
 
 # ─── Lazy singletons ──────────────────────────────────────────────────────────
-_llm = None  # Azure OpenAI LLM
+_llm = None  # Groq LLM
 _checkpointer = None  # LangGraph memory checkpointer
 _agents = {}  # Cache of agents per user
 
@@ -89,26 +91,45 @@ _agents = {}  # Cache of agents per user
 
 
 def get_llm():
-    """Return (and lazily init) the Azure OpenAI LLM."""
+    """Return (and lazily init) the Groq chat LLM."""
     global _llm
     if _llm is not None:
         return _llm
 
     try:
-        # FIXED: Remove temperature parameter or set to 1 (default)
-        # Some Azure OpenAI models don't support custom temperature values
-        _llm = AzureChatOpenAI(
-            azure_endpoint=AZURE_OPENAI_ENDPOINT,
-            api_key=AZURE_OPENAI_KEY,
-            azure_deployment=AZURE_OPENAI_DEPLOYMENT,
-            api_version=AZURE_OPENAI_API_VERSION,
-            # temperature=1,  # Use default temperature (comment out or set to 1)
-            timeout=LANGGRAPH_AGENT_TIMEOUT,
+        if not GROQ_API_KEY:
+            raise RuntimeError("Missing GROQ_API_KEY in environment")
+
+        candidates: List[str] = [GROQ_MODEL]
+        if GROQ_FALLBACK_MODELS.strip():
+            candidates.extend(
+                [m.strip() for m in GROQ_FALLBACK_MODELS.split(",") if m.strip()]
+            )
+        else:
+            candidates.extend(["qwen/qwen3-32b", "llama-3.1-8b-instant"])
+
+        last_exc: Optional[Exception] = None
+        for model_name in candidates:
+            try:
+                _llm = ChatGroq(
+                    api_key=GROQ_API_KEY,
+                    model=model_name,
+                    timeout=LANGGRAPH_AGENT_TIMEOUT,
+                )
+                # Force early failure if model id is invalid/decommissioned.
+                _llm.invoke("ping")
+                logger.info(f"✅ Groq LLM ready: {model_name}")
+                return _llm
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(f"Groq model init failed ({model_name}): {exc}")
+
+        raise RuntimeError(
+            f"Unable to initialize Groq LLM with any model candidates: {candidates}. "
+            f"Last error: {last_exc}"
         )
-        logger.info(f"✅ Azure OpenAI LLM ready: {AZURE_OPENAI_DEPLOYMENT}")
-        return _llm
     except Exception as exc:
-        raise RuntimeError(f"Failed to initialize Azure OpenAI: {exc}") from exc
+        raise RuntimeError(f"Failed to initialize Groq LLM: {exc}") from exc
 
 
 def get_checkpointer():
@@ -263,7 +284,7 @@ Recent Tasks:
         return {
             "success": True,
             "response": response_text,
-            "model": AZURE_OPENAI_DEPLOYMENT,
+            "model": GROQ_MODEL,
             "tool_calls": tool_calls,
             "tokens": tokens,
         }
@@ -273,7 +294,7 @@ Recent Tasks:
         return {
             "success": False,
             "error": str(exc),
-            "model": AZURE_OPENAI_DEPLOYMENT,
+            "model": GROQ_MODEL,
         }
 
 
@@ -281,7 +302,7 @@ Recent Tasks:
 
 
 def check_langgraph_agent_health() -> Dict[str, Any]:
-    """Verify Azure OpenAI is reachable and configured."""
+    """Verify Groq is reachable and configured."""
     try:
         llm = get_llm()
         # Test with a simple message
@@ -289,15 +310,14 @@ def check_langgraph_agent_health() -> Dict[str, Any]:
 
         return {
             "healthy": True,
-            "endpoint": AZURE_OPENAI_ENDPOINT,
-            "deployment": AZURE_OPENAI_DEPLOYMENT,
-            "api_version": AZURE_OPENAI_API_VERSION,
+            "provider": "groq",
+            "model": GROQ_MODEL,
             "error": None,
         }
     except Exception as exc:
         return {
             "healthy": False,
-            "endpoint": AZURE_OPENAI_ENDPOINT,
-            "deployment": AZURE_OPENAI_DEPLOYMENT,
-            "error": f"Azure OpenAI not reachable: {exc}",
+            "provider": "groq",
+            "model": GROQ_MODEL,
+            "error": f"Groq not reachable: {exc}",
         }

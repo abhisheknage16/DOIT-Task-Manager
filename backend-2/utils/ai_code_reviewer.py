@@ -12,7 +12,7 @@ class AICodeReviewer:
     """Uses GPT-5.2 to provide intelligent code review insights"""
     
     def __init__(self):
-        self.model_name = "GPT-5.2-chat"
+        self.model_name = "GPT-4o"
     
     async def analyze_pr(
         self,

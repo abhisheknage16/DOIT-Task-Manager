@@ -22,9 +22,12 @@ import {
   Loader2,
   Grid3x3,
   List,
+  
 } from 'lucide-react';
 import './DataVisualization.css';
 import DocumentIntelligence from './DocumentIntelligence';
+import GlobalInsights from './GlobalIsights';
+
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -224,6 +227,14 @@ export default function DataVisualization() {
           <Sparkles size={18} />
           🧠 Insights
         </button>
+        <button
+            className={`tab-button ${activeTab === 'global-insights' ? 'active' : ''}`}
+            onClick={() => setActiveTab('global-insights')}
+          >
+            <Eye size={18} />
+            🌎 Global Insights
+            <span className="new-badge">NEW</span>
+          </button>
 
         <div className="navbar-actions">
           <input
@@ -630,6 +641,8 @@ export default function DataVisualization() {
               )}
             </>
           )}
+          {activeTab === 'global-insights' && <GlobalInsights />}
+
         </div>
       </div>
     </div>

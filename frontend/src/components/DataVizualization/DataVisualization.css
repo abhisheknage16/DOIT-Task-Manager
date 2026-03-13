@@ -995,3 +995,21 @@ html.dark {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+.new-badge {
+  background: linear-gradient(135deg, #ef4444, #f59e0b);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.navbar-tabs {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
