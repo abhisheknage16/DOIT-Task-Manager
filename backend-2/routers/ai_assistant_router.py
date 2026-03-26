@@ -4,11 +4,15 @@ Routes for ChatGPT-like AI interface using Azure AI Foundry
 NOW with intelligent data-driven insights from MongoDB
 """
 
+import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from dependencies import get_current_user
 from controllers import ai_assistant_controller
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 router = APIRouter()
@@ -156,12 +160,15 @@ async def get_insights(current_user: str = Depends(get_current_user)):
 @router.get("/health")
 async def health_check():
     """Health check for AI Assistant service"""
+    chat_model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+    image_model = os.getenv("AZURE_FLUX_MODEL", "FLUX-1.1-pro")
+
     return {
         "status": "healthy",
         "service": "AI Assistant",
         "models": {
-            "chat": "GPT-5.2-chat (Azure OpenAI)",
-            "image": "FLUX-1.1-pro (Azure AI Foundry)",
+            "chat": f"{chat_model} (Azure OpenAI)",
+            "image": f"{image_model} (Azure AI Foundry)",
         },
         "features": [
             "💬 Intelligent conversations with data context",

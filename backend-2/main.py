@@ -24,11 +24,13 @@ from routers import (
     azure_agent_router,  # ← NEW: Azure AI Foundry Agent
     code_review_router,  # ← NEW: AI Code Review Agent
 )
+from routers.voice_chat_router import router as voice_chat_router
 from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
 from init_db import initialize_super_admin, initialize_default_channels
 from routers.langgraph_agent_router import router as langgraph_agent_router
-from routers.global_insights_router import router as global_insights_router
+from routers.mcp_agent_router import router as mcp_agent_router
+# from routers.global_insights_router import router as global_insights_router
 
 from routers.document_intelligence_router import router as document_intelligence_router
 
@@ -106,6 +108,7 @@ app.include_router(
     azure_agent_router, prefix="/api/foundry-agent", tags=["Azure AI Foundry Agent"]
 )
 app.include_router(local_agent_router, prefix="/api/local-agent", tags=["Local Agent"])
+app.include_router(mcp_agent_router, prefix="/api/mcp-agent", tags=["MCP Agent"])
 app.include_router(
     code_review_router
 )  # Code Review endpoints (prefix defined in router)
@@ -113,7 +116,9 @@ app.include_router(document_intelligence_router, tags=["Document Intelligence"])
 app.include_router(
     langgraph_agent_router, prefix="/api/langgraph-agent", tags=["LangGraph Agent"]
 )
-app.include_router(global_insights_router, tags=["Global Insights"])
+app.include_router(voice_chat_router, prefix="/api/voice-chat", tags=["Voice Chat"])
+
+# app.include_router(global_insights_router, tags=["Global Insights"])
 
 
 # Static files
@@ -146,6 +151,7 @@ async def health_check():
             "AI Assistant (GPT-4o + FLUX)",
             "Azure AI Foundry Agent (asst_0uvId9Fz7NLJfxIwIzD0uN9b)",
             "LangGraph AI Agent (Azure OpenAI + Tools)",
+            "MCP Agent (Task/Sprint/Project/Member MCP Servers)",
         ],
     }
 
@@ -192,6 +198,7 @@ if __name__ == "__main__":
     print("  ✓ AI Assistant (GPT-4o + FLUX-1.1-pro)")
     print("  ✓ Azure AI Foundry Agent (asst_0uvId9Fz7NLJfxIwIzD0uN9b)")
     print("  ✓ LangGraph AI Agent (Azure OpenAI + LangChain Tools)")
+    print("  ✓ MCP Agent (MCP Servers + Automation)")
     print("=" * 60)
     print("🌐 Server starting on http://0.0.0.0:8000")
     print("📖 API Docs: http://localhost:8000/docs")

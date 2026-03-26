@@ -330,7 +330,7 @@ const SprintPage = () => {
           <button 
             className="create-sprint-btn"
             onClick={() => setShowSprintForm(true)}
-            disabled={!!activeSprint && !showSprintForm}
+            disabled={showSprintForm}
           >
             + Create Sprint
           </button>

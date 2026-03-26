@@ -1,12 +1,23 @@
+
+
 """
 Document Intelligence Backend
 ==============================
 FastAPI service that integrates:
-  - Docling  → parse PDFs, PPTX, DOCX, web URLs into structured text
-  - Azure OpenAI GPT (gpt-5.2-chat) → extract KPIs, insights, recommendations
+  - Azure Document Intelligence (docint07) → parse PDFs, PPTX, DOCX, forms, tables
+  - Docling → fallback parser + URL parsing
+  - Azure OpenAI GPT (gpt-4.1-mini) → extract KPIs, insights, recommendations
   - ReportLab → export branded PDF insight report
 
-Uses your existing Azure OpenAI credentials from .env
+Azure Document Intelligence is used as PRIMARY parser for:
+  - PDF files (extracts text, tables, key-value pairs, form fields)
+  - DOCX / DOC files
+  - Images with text (OCR)
+
+Docling is used as FALLBACK for:
+  - URLs
+  - PPTX files
+  - Any file that fails Azure DI parsing
 """
 
 from __future__ import annotations
@@ -20,10 +31,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional, List
 
-from openai import AzureOpenAI
 from fastapi import HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from utils.azure_ai_utils import chat_completion_gpt4_mini, get_gpt4_mini_chat_config
 
 load_dotenv()
 
@@ -42,23 +53,35 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-# ── Azure OpenAI Configuration ─────────────────────────────────────────────
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
+# ── Azure Document Intelligence Configuration ──────────────────────────────
+AZURE_DI_ENDPOINT = os.getenv(
+    "DOCUMENT_INTELLIGENCE_ENDPOINT", "https://docint07.cognitiveservices.azure.com/"
+)
+AZURE_DI_KEY = os.getenv("DOCUMENT_INTELLIGENCE_KEY", "")
 
-# Initialize Azure OpenAI client
-try:
-    azure_client = AzureOpenAI(
-        api_version=AZURE_OPENAI_API_VERSION,
-        azure_endpoint=AZURE_OPENAI_ENDPOINT,
-        api_key=AZURE_OPENAI_KEY,
-    )
-    print("✅ Document Intelligence: Azure OpenAI client ready")
-except Exception as e:
-    print(f"❌ Document Intelligence: Azure OpenAI init failed: {e}")
-    azure_client = None
+# ── Azure OpenAI Configuration (GPT-4.1-mini profile) ─────────────────────
+DOC_INTEL_CONFIG = get_gpt4_mini_chat_config()
+print(
+    "✅ Document Intelligence profile loaded: "
+    f"deployment={DOC_INTEL_CONFIG.get('deployment')}, "
+    f"api_version={DOC_INTEL_CONFIG.get('api_version')}"
+)
+if AZURE_DI_KEY:
+    print(f"✅ Azure Document Intelligence ready: {AZURE_DI_ENDPOINT}")
+else:
+    print("⚠️  DOCUMENT_INTELLIGENCE_KEY not set — will use Docling fallback only")
+
+
+def get_document_intelligence_llm_config() -> dict:
+    cfg = get_gpt4_mini_chat_config()
+    return {
+        "endpoint": cfg.get("endpoint"),
+        "deployment": cfg.get("deployment"),
+        "api_version": cfg.get("api_version"),
+        "key_loaded": bool(cfg.get("key_loaded")),
+        "azure_di_endpoint": AZURE_DI_ENDPOINT,
+        "azure_di_key_loaded": bool(AZURE_DI_KEY),
+    }
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────
@@ -101,236 +124,360 @@ class InsightReport(BaseModel):
     bottom_performers: List[Performer] = []
     score_distribution: Optional[ScoreDistribution] = None
     generated_at: str
+    parser_used: str = "unknown"  # NEW: tracks which parser was used
 
 
-# ── Document parsing via Docling ──────────────────────────────────────────
-def parse_document(source: str) -> str:
+# ── Azure Document Intelligence Parser ────────────────────────────────────
+def parse_with_azure_di(file_bytes: bytes, filename: str) -> str:
+    """
+    Use Azure Document Intelligence (Form Recognizer) to extract text,
+    tables, and key-value pairs from PDFs and documents.
+
+    Returns extracted text as a structured markdown string.
+    Raises exception if Azure DI is not configured or fails.
+    """
+    if not AZURE_DI_KEY:
+        raise ValueError("DOCUMENT_INTELLIGENCE_KEY not configured")
+
+    try:
+        from azure.ai.documentintelligence import DocumentIntelligenceClient
+        from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
+        from azure.core.credentials import AzureKeyCredential
+    except ImportError:
+        raise ImportError(
+            "azure-ai-documentintelligence not installed. "
+            "Run: pip install azure-ai-documentintelligence"
+        )
+
+    client = DocumentIntelligenceClient(
+        endpoint=AZURE_DI_ENDPOINT, credential=AzureKeyCredential(AZURE_DI_KEY)
+    )
+
+    # Use prebuilt-layout model — best for general documents
+    # Extracts: text, tables, paragraphs, key-value pairs, selection marks
+    poller = client.begin_analyze_document(
+        "prebuilt-layout",
+        body=file_bytes,
+        content_type="application/octet-stream",
+    )
+    result = poller.result()
+
+    lines = [f"# Document: {filename}", ""]
+
+    # ── Extract key-value pairs (forms, invoices, etc.) ───────────────────
+    if result.key_value_pairs:
+        lines.append("## Key-Value Pairs (Form Fields)")
+        for kv in result.key_value_pairs:
+            key = kv.key.content if kv.key else "Unknown"
+            value = kv.value.content if kv.value else "N/A"
+            lines.append(f"  **{key}**: {value}")
+        lines.append("")
+
+    # ── Extract tables ────────────────────────────────────────────────────
+    if result.tables:
+        lines.append(f"## Tables ({len(result.tables)} found)")
+        for t_idx, table in enumerate(result.tables):
+            lines.append(
+                f"\n### Table {t_idx + 1} ({table.row_count} rows × {table.column_count} cols)"
+            )
+
+            # Build a grid
+            grid = [[""] * table.column_count for _ in range(table.row_count)]
+            for cell in table.cells:
+                grid[cell.row_index][cell.column_index] = cell.content.replace(
+                    "\n", " "
+                )
+
+            # Render as markdown table
+            if grid:
+                header = "| " + " | ".join(grid[0]) + " |"
+                separator = "| " + " | ".join(["---"] * table.column_count) + " |"
+                lines.append(header)
+                lines.append(separator)
+                for row in grid[1:]:
+                    lines.append("| " + " | ".join(row) + " |")
+        lines.append("")
+
+    # ── Extract paragraphs / full text ────────────────────────────────────
+    if result.paragraphs:
+        lines.append("## Document Text")
+        for para in result.paragraphs:
+            if para.content and para.content.strip():
+                # Add heading formatting based on role
+                role = getattr(para, "role", None)
+                if role in ("title", "sectionHeading"):
+                    lines.append(f"\n### {para.content}")
+                elif role == "pageHeader":
+                    lines.append(f"\n**[Header]** {para.content}")
+                elif role == "pageFooter":
+                    lines.append(f"\n*[Footer]* {para.content}")
+                else:
+                    lines.append(para.content)
+    elif result.content:
+        # Fallback to raw content if no paragraphs
+        lines.append("## Document Text")
+        lines.append(result.content)
+
+    extracted = "\n".join(lines)
+    print(f"✅ Azure DI extracted {len(extracted)} chars from {filename}")
+    return extracted
+
+
+# ── CSV / Excel Parser (unchanged) ────────────────────────────────────────
+def parse_csv_excel(source: str) -> str:
+    """Parse CSV and Excel files using pandas."""
+    try:
+        import pandas as pd
+        import numpy as np
+
+        ext = Path(source).suffix.lower()
+        df = pd.read_csv(source) if ext == ".csv" else pd.read_excel(source)
+        rows, cols = df.shape
+        numeric_cols = df.select_dtypes(include="number").columns.tolist()
+        text_cols = df.select_dtypes(include="object").columns.tolist()
+
+        lines = [
+            f"# Full Spreadsheet Data for Deep Analysis",
+            f"**File:** {Path(source).name}",
+            f"**Total Records:** {rows}  |  **Columns:** {cols}",
+            f"**Numeric columns:** {', '.join(numeric_cols) or 'none'}",
+            f"**Text/categorical columns:** {', '.join(text_cols) or 'none'}",
+            "",
+        ]
+
+        if numeric_cols:
+            lines += ["## Descriptive Statistics (all numeric columns)"]
+            stats = df[numeric_cols].describe().round(3)
+            lines.append(stats.to_string())
+            lines.append("")
+
+            if len(numeric_cols) >= 2:
+                lines += ["## Correlation Matrix"]
+                lines.append(df[numeric_cols].corr().round(3).to_string())
+                lines.append("")
+
+        if text_cols:
+            lines += ["## Categorical Distributions"]
+            for col in text_cols[:8]:
+                vc = df[col].value_counts()
+                pct = (vc / rows * 100).round(1)
+                lines.append(f"\n### {col}")
+                for val, cnt in vc.items():
+                    lines.append(f"  {val}: {cnt} ({pct[val]}%)")
+            lines.append("")
+
+        if numeric_cols:
+            name_col = None
+            for candidate in [
+                "name",
+                "intern",
+                "participant",
+                "employee",
+                "student",
+                "person",
+                "id",
+                "Name",
+                "Intern",
+                "Participant",
+            ]:
+                if candidate in df.columns:
+                    name_col = candidate
+                    break
+            if name_col is None and text_cols:
+                name_col = text_cols[0]
+
+            score_col = None
+            for candidate in [
+                "total",
+                "score",
+                "Total",
+                "Score",
+                "TOTAL",
+                "SCORE",
+                "marks",
+                "Marks",
+                "points",
+                "Points",
+                "result",
+                "Result",
+            ]:
+                if candidate in numeric_cols:
+                    score_col = candidate
+                    break
+            if score_col is None and numeric_cols:
+                score_col = df[numeric_cols].var().idxmax()
+
+            if score_col:
+                lines += [f"## Individual Rankings by '{score_col}'"]
+                ranked = (
+                    df[
+                        [name_col, score_col]
+                        + [c for c in numeric_cols if c != score_col]
+                    ].copy()
+                    if name_col
+                    else df[numeric_cols].copy()
+                )
+                ranked = ranked.sort_values(score_col, ascending=False).reset_index(
+                    drop=True
+                )
+                ranked.index += 1
+                lines.append(ranked.to_string())
+                lines.append("")
+
+                lines += [f"## TOP 5 PERFORMERS (by {score_col})"]
+                top5 = ranked.head(5)
+                for rank, row2 in top5.iterrows():
+                    name_val = row2[name_col] if name_col else f"Row {rank}"
+                    score_val = row2[score_col]
+                    other = {
+                        c: round(row2[c], 2)
+                        for c in numeric_cols
+                        if c != score_col and c in row2
+                    }
+                    lines.append(
+                        f"  #{rank}: {name_val} — {score_col}={score_val}  |  {other}"
+                    )
+                lines.append("")
+
+                lines += [f"## BOTTOM 5 PERFORMERS (by {score_col})"]
+                bot5 = ranked.tail(5).sort_values(score_col)
+                for rank, row2 in bot5.iterrows():
+                    name_val = row2[name_col] if name_col else f"Row {rank}"
+                    score_val = row2[score_col]
+                    other = {
+                        c: round(row2[c], 2)
+                        for c in numeric_cols
+                        if c != score_col and c in row2
+                    }
+                    lines.append(
+                        f"  #{rank}: {name_val} — {score_col}={score_val}  |  {other}"
+                    )
+                lines.append("")
+
+                lines += [f"## OUTLIERS DETECTED (IQR method on {score_col})"]
+                q1, q3 = df[score_col].quantile(0.25), df[score_col].quantile(0.75)
+                iqr = q3 - q1
+                outliers = df[
+                    (df[score_col] < q1 - 1.5 * iqr) | (df[score_col] > q3 + 1.5 * iqr)
+                ]
+                if outliers.empty:
+                    lines.append(
+                        "  No outliers detected — scores are tightly clustered."
+                    )
+                else:
+                    lines.append(outliers.to_string())
+                lines.append("")
+
+                lines += ["## SCORE DISTRIBUTION BUCKETS"]
+                max_score = df[score_col].max()
+                if max_score > 0:
+                    import pandas as pd_inner
+
+                    buckets = pd_inner.cut(
+                        df[score_col],
+                        bins=[
+                            0,
+                            max_score * 0.5,
+                            max_score * 0.7,
+                            max_score * 0.85,
+                            max_score,
+                        ],
+                        labels=[
+                            "Needs Improvement (<50%)",
+                            "Developing (50-70%)",
+                            "Proficient (70-85%)",
+                            "Excellent (85-100%)",
+                        ],
+                    )
+                    dist = buckets.value_counts().sort_index()
+                    for bucket, cnt in dist.items():
+                        lines.append(f"  {bucket}: {cnt} ({cnt / rows * 100:.1f}%)")
+                lines.append("")
+
+                for tcol in text_cols[:3]:
+                    if tcol == name_col:
+                        continue
+                    lines += [f"## Average {score_col} by {tcol}"]
+                    grp = (
+                        df.groupby(tcol)[numeric_cols]
+                        .mean()
+                        .round(2)
+                        .sort_values(score_col, ascending=False)
+                    )
+                    lines.append(grp.to_string())
+                    lines.append("")
+
+        lines += [f"## COMPLETE DATA TABLE ({rows} rows)"]
+        lines.append(df.to_string(index=True))
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"[CSV/Excel parse error: {str(e)}]"
+
+
+# ── Main document parser (with Azure DI as primary) ───────────────────────
+def parse_document(source: str, file_bytes: Optional[bytes] = None) -> tuple[str, str]:
     """
     Parse a local file path or URL to text.
-    - CSV / Excel → pandas summary + first 50 rows as markdown table
-    - PDF / PPTX / DOCX / TXT → Docling (falls back to plain-text read)
-    - URL → Docling
+    Returns (extracted_text, parser_name)
+
+    Priority:
+    1. CSV/Excel → pandas (always)
+    2. PDF/DOCX/DOC/images → Azure Document Intelligence (if key available)
+    3. PPTX/TXT/URLs → Docling
+    4. Fallback → plain text read
     """
     ext = Path(source).suffix.lower()
 
-    # ── CSV / Excel: use pandas ───────────────────────────────────────────
+    # ── CSV / Excel: always use pandas ───────────────────────────────────
     if ext in (".csv", ".xlsx", ".xls"):
+        return parse_csv_excel(source), "pandas"
+
+    # ── Azure DI supported formats ────────────────────────────────────────
+    AZURE_DI_FORMATS = {
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".jpeg",
+        ".jpg",
+        ".png",
+        ".tiff",
+        ".bmp",
+    }
+
+    if ext in AZURE_DI_FORMATS and AZURE_DI_KEY:
         try:
-            import pandas as pd
-            import numpy as np
-
-            df = pd.read_csv(source) if ext == ".csv" else pd.read_excel(source)
-            rows, cols = df.shape
-            numeric_cols = df.select_dtypes(include="number").columns.tolist()
-            text_cols = df.select_dtypes(include="object").columns.tolist()
-
-            lines = [
-                f"# Full Spreadsheet Data for Deep Analysis",
-                f"**File:** {Path(source).name}",
-                f"**Total Records:** {rows}  |  **Columns:** {cols}",
-                f"**Numeric columns:** {', '.join(numeric_cols) or 'none'}",
-                f"**Text/categorical columns:** {', '.join(text_cols) or 'none'}",
-                "",
-            ]
-
-            # ── Descriptive statistics ─────────────────────────────────────
-            if numeric_cols:
-                lines += ["## Descriptive Statistics (all numeric columns)"]
-                stats = df[numeric_cols].describe().round(3)
-                lines.append(stats.to_string())
-                lines.append("")
-
-                # Correlation matrix if 2+ numeric cols
-                if len(numeric_cols) >= 2:
-                    lines += ["## Correlation Matrix"]
-                    lines.append(df[numeric_cols].corr().round(3).to_string())
-                    lines.append("")
-
-            # ── Categorical distributions ──────────────────────────────────
-            if text_cols:
-                lines += ["## Categorical Distributions"]
-                for col in text_cols[:8]:
-                    vc = df[col].value_counts()
-                    pct = (vc / rows * 100).round(1)
-                    lines.append(f"\n### {col}")
-                    for val, cnt in vc.items():
-                        lines.append(f"  {val}: {cnt} ({pct[val]}%)")
-                lines.append("")
-
-            # ── Per-person / per-row rankings (the key missing piece) ──────
-            if numeric_cols:
-                # Try to detect a "name" or "id" column for individual attribution
-                name_col = None
-                for candidate in [
-                    "name",
-                    "intern",
-                    "participant",
-                    "employee",
-                    "student",
-                    "person",
-                    "id",
-                    "Name",
-                    "Intern",
-                    "Participant",
-                ]:
-                    if candidate in df.columns:
-                        name_col = candidate
-                        break
-                # Fallback: first text column
-                if name_col is None and text_cols:
-                    name_col = text_cols[0]
-
-                # Detect the primary score/metric column
-                score_col = None
-                for candidate in [
-                    "total",
-                    "score",
-                    "Total",
-                    "Score",
-                    "TOTAL",
-                    "SCORE",
-                    "marks",
-                    "Marks",
-                    "points",
-                    "Points",
-                    "result",
-                    "Result",
-                ]:
-                    if candidate in numeric_cols:
-                        score_col = candidate
-                        break
-                # Fallback: numeric col with highest variance
-                if score_col is None and numeric_cols:
-                    score_col = df[numeric_cols].var().idxmax()
-
-                if score_col:
-                    lines += [f"## Individual Rankings by '{score_col}'"]
-                    ranked = (
-                        df[
-                            [name_col, score_col]
-                            + [c for c in numeric_cols if c != score_col]
-                        ].copy()
-                        if name_col
-                        else df[numeric_cols].copy()
-                    )
-                    ranked = ranked.sort_values(score_col, ascending=False).reset_index(
-                        drop=True
-                    )
-                    ranked.index += 1  # 1-based rank
-                    lines.append(ranked.to_string())
-                    lines.append("")
-
-                    # Top 5 performers
-                    lines += [f"## TOP 5 PERFORMERS (by {score_col})"]
-                    top5 = ranked.head(5)
-                    for rank, row2 in top5.iterrows():
-                        name_val = row2[name_col] if name_col else f"Row {rank}"
-                        score_val = row2[score_col]
-                        other = {
-                            c: round(row2[c], 2)
-                            for c in numeric_cols
-                            if c != score_col and c in row2
-                        }
-                        lines.append(
-                            f"  #{rank}: {name_val} — {score_col}={score_val}  |  {other}"
-                        )
-                    lines.append("")
-
-                    # Bottom 5 performers
-                    lines += [f"## BOTTOM 5 PERFORMERS (by {score_col})"]
-                    bot5 = ranked.tail(5).sort_values(score_col)
-                    for rank, row2 in bot5.iterrows():
-                        name_val = row2[name_col] if name_col else f"Row {rank}"
-                        score_val = row2[score_col]
-                        other = {
-                            c: round(row2[c], 2)
-                            for c in numeric_cols
-                            if c != score_col and c in row2
-                        }
-                        lines.append(
-                            f"  #{rank}: {name_val} — {score_col}={score_val}  |  {other}"
-                        )
-                    lines.append("")
-
-                    # Outlier detection using IQR
-                    lines += [f"## OUTLIERS DETECTED (IQR method on {score_col})"]
-                    q1, q3 = df[score_col].quantile(0.25), df[score_col].quantile(0.75)
-                    iqr = q3 - q1
-                    outliers = df[
-                        (df[score_col] < q1 - 1.5 * iqr)
-                        | (df[score_col] > q3 + 1.5 * iqr)
-                    ]
-                    if outliers.empty:
-                        lines.append(
-                            "  No outliers detected — scores are tightly clustered."
-                        )
-                    else:
-                        lines.append(outliers.to_string())
-                    lines.append("")
-
-                    # Score distribution buckets
-                    lines += ["## SCORE DISTRIBUTION BUCKETS"]
-                    max_score = df[score_col].max()
-                    if max_score > 0:
-                        buckets = pd.cut(
-                            df[score_col],
-                            bins=[
-                                0,
-                                max_score * 0.5,
-                                max_score * 0.7,
-                                max_score * 0.85,
-                                max_score,
-                            ],
-                            labels=[
-                                "Needs Improvement (<50%)",
-                                "Developing (50-70%)",
-                                "Proficient (70-85%)",
-                                "Excellent (85-100%)",
-                            ],
-                        )
-                        dist = buckets.value_counts().sort_index()
-                        for bucket, cnt in dist.items():
-                            lines.append(f"  {bucket}: {cnt} ({cnt / rows * 100:.1f}%)")
-                    lines.append("")
-
-                    # Per-category averages (group by each text col)
-                    for tcol in text_cols[:3]:
-                        if tcol == name_col:
-                            continue
-                        lines += [f"## Average {score_col} by {tcol}"]
-                        grp = (
-                            df.groupby(tcol)[numeric_cols]
-                            .mean()
-                            .round(2)
-                            .sort_values(score_col, ascending=False)
-                        )
-                        lines.append(grp.to_string())
-                        lines.append("")
-
-            # ── Full data dump (all rows) ──────────────────────────────────
-            lines += [f"## COMPLETE DATA TABLE ({rows} rows)"]
-            lines.append(df.to_string(index=True))
-
-            return "\n".join(lines)
-
+            # Read file bytes if not already provided
+            if file_bytes is None:
+                with open(source, "rb") as f:
+                    file_bytes = f.read()
+            filename = Path(source).name
+            text = parse_with_azure_di(file_bytes, filename)
+            return text, "Azure Document Intelligence"
+        except ImportError as e:
+            print(f"⚠️  Azure DI SDK not installed, falling back to Docling: {e}")
         except Exception as e:
-            return f"[CSV/Excel parse error: {str(e)}]"
+            print(f"⚠️  Azure DI failed for {source}, falling back to Docling: {e}")
 
-    # ── All other file types: Docling → plain-text fallback ───────────────
+    # ── Docling: PPTX, TXT, URLs, and fallback ───────────────────────────
     try:
         from docling.document_converter import DocumentConverter
 
         converter = DocumentConverter()
         result = converter.convert(str(source))
-        return result.document.export_to_markdown()
+        return result.document.export_to_markdown(), "Docling"
     except ImportError:
-        try:
-            with open(source, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read()
-        except Exception:
-            return f"[Could not parse document: {source}]"
+        pass
     except Exception as e:
-        return f"[Docling parse error: {str(e)}]"
+        print(f"⚠️  Docling failed: {e}")
+
+    # ── Final fallback: plain text read ───────────────────────────────────
+    try:
+        with open(source, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read(), "plain-text"
+    except Exception:
+        return f"[Could not parse document: {source}]", "failed"
 
 
 # ── Azure OpenAI insight extraction ──────────────────────────────────────
@@ -379,10 +526,18 @@ CRITICAL RULES — violating these makes the analysis useless:
 
 def extract_insights_azure(doc_text: str, question: str) -> dict:
     """Extract insights using Azure OpenAI."""
-    if azure_client is None:
+    cfg = get_document_intelligence_llm_config()
+    if (
+        not cfg.get("endpoint")
+        or not cfg.get("deployment")
+        or not cfg.get("key_loaded")
+    ):
         raise HTTPException(
             status_code=503,
-            detail="Azure OpenAI client not initialised. Check environment variables.",
+            detail=(
+                "Document Intelligence Azure profile is not fully configured. "
+                "Check AZURE_OPENAI_KEY and GPT_4_mini env variables."
+            ),
         )
 
     user_prompt = f"""Business question: {question or "Provide a comprehensive, deep analysis. Identify every named top and bottom performer explicitly. Leave nothing vague."}
@@ -391,16 +546,14 @@ Document content:
 {doc_text[:20000]}
 """
     try:
-        response = azure_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT,
+        response = chat_completion_gpt4_mini(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_completion_tokens=4000,
+            max_tokens=4000,
         )
-        raw = response.choices[0].message.content.strip()
-        # Strip markdown fences if the model adds them
+        raw = response["content"].strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -412,7 +565,7 @@ Document content:
         raise HTTPException(status_code=500, detail=f"Azure OpenAI error: {str(e)}")
 
 
-# ── ReportLab PDF builder ─────────────────────────────────────────────────
+# ── ReportLab PDF builder (unchanged) ─────────────────────────────────────
 
 C_BG = colors.HexColor("#0f1117")
 C_SURFACE = colors.HexColor("#1a1d27")
@@ -540,17 +693,20 @@ def generate_pdf_report(report: InsightReport) -> bytes:
     story = []
     W = A4[0] - 40 * mm
 
-    # Cover
     story.append(Spacer(1, 10 * mm))
     story.append(Paragraph("DOCUMENT INTELLIGENCE REPORT", st["subtitle"]))
     story.append(Spacer(1, 3 * mm))
     story.append(Paragraph(report.doc_name, st["title"]))
     story.append(Spacer(1, 2 * mm))
-    story.append(Paragraph(f"Generated: {report.generated_at}", st["subtitle"]))
+    story.append(
+        Paragraph(
+            f"Generated: {report.generated_at}  |  Parser: {report.parser_used}",
+            st["subtitle"],
+        )
+    )
     story.append(Spacer(1, 4 * mm))
     story.append(HRFlowable(width=W, thickness=1, color=C_ACCENT, spaceAfter=6 * mm))
 
-    # Summary
     story.append(Paragraph("EXECUTIVE SUMMARY", st["section"]))
     story.append(Spacer(1, 2 * mm))
     summary_table = Table([[Paragraph(report.summary, st["body"])]], colWidths=[W])
@@ -568,7 +724,6 @@ def generate_pdf_report(report: InsightReport) -> bytes:
     story.append(summary_table)
     story.append(Spacer(1, 6 * mm))
 
-    # KPIs
     story.append(Paragraph("KEY PERFORMANCE INDICATORS", st["section"]))
     story.append(Spacer(1, 2 * mm))
     kpi_cells, row = [], []
@@ -618,7 +773,6 @@ def generate_pdf_report(report: InsightReport) -> bytes:
         story.append(kpi_table)
     story.append(Spacer(1, 6 * mm))
 
-    # ── Score Distribution ─────────────────────────────────────────────────
     if report.score_distribution:
         story.append(Paragraph("SCORE DISTRIBUTION", st["section"]))
         story.append(Spacer(1, 2 * mm))
@@ -724,7 +878,6 @@ def generate_pdf_report(report: InsightReport) -> bytes:
         story.append(dist_table)
         story.append(Spacer(1, 6 * mm))
 
-    # ── Top Performers ─────────────────────────────────────────────────────
     if report.top_performers:
         story.append(Paragraph("TOP PERFORMERS", st["section"]))
         story.append(Spacer(1, 2 * mm))
@@ -808,7 +961,6 @@ def generate_pdf_report(report: InsightReport) -> bytes:
         story.append(top_table)
         story.append(Spacer(1, 6 * mm))
 
-    # ── Bottom Performers ──────────────────────────────────────────────────
     if report.bottom_performers:
         story.append(Paragraph("NEEDS ATTENTION", st["section"]))
         story.append(Spacer(1, 2 * mm))
@@ -891,6 +1043,7 @@ def generate_pdf_report(report: InsightReport) -> bytes:
         )
         story.append(bot_table)
         story.append(Spacer(1, 6 * mm))
+
     story.append(Paragraph("BUSINESS INSIGHTS", st["section"]))
     story.append(Spacer(1, 2 * mm))
     for ins in report.insights:
@@ -925,7 +1078,6 @@ def generate_pdf_report(report: InsightReport) -> bytes:
         story.append(Spacer(1, 3 * mm))
     story.append(Spacer(1, 4 * mm))
 
-    # Recommendations
     story.append(Paragraph("STRATEGIC RECOMMENDATIONS", st["section"]))
     story.append(Spacer(1, 2 * mm))
     rec_rows = []
@@ -960,13 +1112,12 @@ def generate_pdf_report(report: InsightReport) -> bytes:
         )
         story.append(rec_table)
 
-    # Footer
     story.append(Spacer(1, 8 * mm))
     story.append(HRFlowable(width=W, thickness=0.5, color=C_MUTED))
     story.append(Spacer(1, 2 * mm))
     story.append(
         Paragraph(
-            "Powered by Docling · Azure OpenAI (GPT) · ReportLab  |  Document Intelligence Platform",
+            "Powered by Azure Document Intelligence · Azure OpenAI (GPT) · ReportLab  |  Document Intelligence Platform",
             st["footer"],
         )
     )
@@ -981,7 +1132,9 @@ def generate_pdf_report(report: InsightReport) -> bytes:
 # ── Controller functions (called by the router) ───────────────────────────
 
 
-def _build_report(filename: str, question: str, raw: dict) -> InsightReport:
+def _build_report(
+    filename: str, question: str, raw: dict, parser_used: str = "unknown"
+) -> InsightReport:
     """Build InsightReport from raw AI JSON, safely handling optional new fields."""
     performers_top = [Performer(**p) for p in raw.get("top_performers", [])]
     performers_bot = [Performer(**p) for p in raw.get("bottom_performers", [])]
@@ -999,6 +1152,7 @@ def _build_report(filename: str, question: str, raw: dict) -> InsightReport:
         bottom_performers=performers_bot,
         score_distribution=dist,
         generated_at=datetime.now().strftime("%B %d, %Y %H:%M"),
+        parser_used=parser_used,
     )
 
 
@@ -1006,22 +1160,44 @@ def analyze_document_from_file(
     file_bytes: bytes, filename: str, question: str = ""
 ) -> InsightReport:
     """Parse uploaded file + run Azure OpenAI analysis."""
-    suffix = Path(filename).suffix
+    suffix = Path(filename).suffix.lower()
+
+    # For Azure DI supported formats, pass bytes directly (no temp file needed)
+    AZURE_DI_FORMATS = {
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".jpeg",
+        ".jpg",
+        ".png",
+        ".tiff",
+        ".bmp",
+    }
+
+    if suffix in AZURE_DI_FORMATS and AZURE_DI_KEY:
+        try:
+            doc_text = parse_with_azure_di(file_bytes, filename)
+            raw = extract_insights_azure(doc_text, question)
+            return _build_report(filename, question, raw, "Azure Document Intelligence")
+        except Exception as e:
+            print(f"⚠️  Azure DI failed, falling back to Docling: {e}")
+
+    # For CSV/Excel or fallback
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
     try:
-        doc_text = parse_document(tmp_path)
+        doc_text, parser_used = parse_document(tmp_path, file_bytes)
     finally:
         os.unlink(tmp_path)
 
     raw = extract_insights_azure(doc_text, question)
-    return _build_report(filename, question, raw)
+    return _build_report(filename, question, raw, parser_used)
 
 
 def analyze_document_from_url(url: str, question: str = "") -> InsightReport:
     """Parse URL with Docling + run Azure OpenAI analysis."""
-    doc_text = parse_document(url)
+    doc_text, parser_used = parse_document(url)
     raw = extract_insights_azure(doc_text, question)
-    return _build_report(url, question, raw)
+    return _build_report(url, question, raw, parser_used)

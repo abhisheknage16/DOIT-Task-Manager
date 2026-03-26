@@ -14,6 +14,20 @@ from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
+
+def _is_super_admin(user_id: str) -> bool:
+    try:
+        user = User.find_by_id(user_id)
+        return bool(user and user.get("role", "").lower() == "super-admin")
+    except Exception:
+        return False
+
+
+def _project_access_filter(user_id: str) -> Dict[str, Any]:
+    if _is_super_admin(user_id):
+        return {}
+    return {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+
 # ─── Command Detection ─────────────────────────────────────────────────────
 
 
@@ -370,7 +384,7 @@ def resolve_project_id(
         # 1. Try exact match (case-insensitive, ignoring 'project' suffix)
         project = db.projects.find_one(
             {
-                "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                **_project_access_filter(user_id),
                 "$expr": {
                     "$eq": [{"$trim": {"input": {"$toLower": "$name"}}}, norm_input]
                 },
@@ -380,9 +394,7 @@ def resolve_project_id(
             return str(project["_id"])
         # 2. Try partial/substring match
         projects = list(
-            db.projects.find(
-                {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
-            )
+            db.projects.find(_project_access_filter(user_id))
         )
         for p in projects:
             pname = normalize(p.get("name", ""))
@@ -415,9 +427,7 @@ def find_task_by_title_or_id(
     try:
         # Get user's projects
         projects = list(
-            db.projects.find(
-                {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
-            )
+            db.projects.find(_project_access_filter(user_id))
         )
         project_ids = [str(p["_id"]) for p in projects]
 
@@ -477,9 +487,7 @@ def find_sprint_by_name_or_id(
         else:
             # Get user's projects
             projects = list(
-                db.projects.find(
-                    {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
-                )
+                db.projects.find(_project_access_filter(user_id))
             )
             project_ids = [str(p["_id"]) for p in projects]
             query["project_id"] = {"$in": project_ids}

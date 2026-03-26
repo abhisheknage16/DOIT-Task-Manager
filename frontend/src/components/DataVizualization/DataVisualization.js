@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import './DataVisualization.css';
 import DocumentIntelligence from './DocumentIntelligence';
-import GlobalInsights from './GlobalIsights';
+// import GlobalInsights from './GlobalIsights';
 
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
@@ -641,7 +641,7 @@ export default function DataVisualization() {
               )}
             </>
           )}
-          {activeTab === 'global-insights' && <GlobalInsights />}
+        {/* {activeTab === 'global-insights' && <GlobalInsights />} */}
 
         </div>
       </div>

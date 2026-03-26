@@ -9,20 +9,32 @@ from bson import ObjectId
 from database import db
 
 
+def make_aware(dt):
+    """Ensure a datetime is timezone-aware (UTC). Returns None if input is None."""
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except Exception:
+            return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+    return None
+
+
 def analyze_user_data_for_ai(user_id: str) -> dict:
     """
     Comprehensive user data analysis for AI Assistant context
     Returns structured data that AI can use to provide intelligent insights
-
-    This is similar to analyze_user_data in chat_controller but optimized
-    for AI Assistant's conversation context
     """
     try:
         user = db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
             return None
 
-        # Get all projects where user is owner or member
         user_projects = list(
             db.projects.find(
                 {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
@@ -31,45 +43,33 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
 
         project_ids = [str(p["_id"]) for p in user_projects]
 
-        # 🚀 OPTIMIZATION: Exclude large arrays (activities, attachments, links)
-        # This reduces data transfer by 60-70% for typical tasks
         task_projection = {
             "activities": 0,
             "attachments": 0,
             "links": 0,
         }
 
-        # Fetch relevant collections with field projections
         my_tasks = list(db.tasks.find({"assignee_id": user_id}, task_projection))
         all_tasks = list(
             db.tasks.find({"project_id": {"$in": project_ids}}, task_projection)
         )
         sprints = list(db.sprints.find({"project_id": {"$in": project_ids}}))
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(timezone.utc)
 
-        # Helper functions
         def format_date(dt):
             if not dt:
                 return None
-            if isinstance(dt, str):
-                try:
-                    dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
-                except:
-                    return dt
-            return dt.strftime("%Y-%m-%d")
+            aware = make_aware(dt)
+            if aware is None:
+                return str(dt)
+            return aware.strftime("%Y-%m-%d")
 
         def days_ago(dt):
-            if not dt:
+            aware = make_aware(dt)
+            if aware is None:
                 return None
-            if isinstance(dt, str):
-                try:
-                    dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
-                except:
-                    return None
-            if isinstance(dt, datetime):
-                return (now - dt).days
-            return None
+            return (now - aware).days
 
         # Task Statistics
         task_stats = {
@@ -93,27 +93,21 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
 
             due = task.get("due_date")
             if due and status not in ["Done", "Closed"]:
-                due_dt = None
-                if isinstance(due, str):
-                    try:
-                        due_dt = datetime.fromisoformat(due.replace("Z", "+00:00"))
-                    except:
-                        pass
-                elif isinstance(due, datetime):
-                    due_dt = due
-
-                if due_dt:
+                due_dt = make_aware(due)
+                if due_dt is not None:
                     if due_dt < now:
                         task_stats["overdue_count"] += 1
                     elif due_dt < now + timedelta(days=7):
                         task_stats["due_soon_count"] += 1
 
             completed = task.get("updated_at")
-            if status in ["Done", "Closed"] and isinstance(completed, datetime):
-                if completed > now - timedelta(days=7):
-                    task_stats["completed_this_week"] += 1
-                if completed > now - timedelta(days=30):
-                    task_stats["completed_this_month"] += 1
+            if status in ["Done", "Closed"] and completed:
+                completed_aware = make_aware(completed)
+                if completed_aware is not None:
+                    if completed_aware > now - timedelta(days=7):
+                        task_stats["completed_this_week"] += 1
+                    if completed_aware > now - timedelta(days=30):
+                        task_stats["completed_this_month"] += 1
 
         # Team & Collaboration
         team_stats = {}
@@ -130,11 +124,9 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
                 "members_list": member_ids[:8],
             }
 
-        # Unique collaborators
         all_assignees = {t["assignee_id"] for t in all_tasks if t.get("assignee_id")}
         total_collaborators = len(all_assignees - {user_id})
 
-        # Workload distribution
         assignee_workload = {}
         for task in all_tasks:
             assignee = task.get("assignee_id")
@@ -145,7 +137,6 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
             assignee_workload.items(), key=lambda x: x[1], reverse=True
         )[:5]
 
-        # Blocked / Blocker tasks
         blocked_count = 0
         blocking_count = 0
         for task in all_tasks:
@@ -165,11 +156,18 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
             and days_ago(t["updated_at"]) <= 30
         )
 
-        # Recent tasks with more context
+        # Recent tasks
+        def safe_updated_at(task):
+            val = task.get("updated_at")
+            aware = make_aware(val)
+            return (
+                aware
+                if aware is not None
+                else datetime.min.replace(tzinfo=timezone.utc)
+            )
+
         recent_tasks = []
-        for task in sorted(
-            my_tasks, key=lambda x: x.get("updated_at", datetime.min), reverse=True
-        )[:10]:
+        for task in sorted(my_tasks, key=safe_updated_at, reverse=True)[:10]:
             recent_tasks.append(
                 {
                     "ticket_id": task.get("ticket_id", ""),
@@ -183,7 +181,7 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
                 }
             )
 
-        # Top projects with more details
+        # Top projects
         top_projects = []
         for p in user_projects[:8]:
             project_tasks = [
@@ -214,7 +212,6 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
             "planned": sum(1 for s in sprints if s.get("status") == "planned"),
         }
 
-        # Active sprint details
         active_sprint = None
         for s in sprints:
             if s.get("status") == "active":
@@ -302,7 +299,6 @@ def analyze_user_data_for_ai(user_id: str) -> dict:
 def build_ai_system_prompt(user_data: dict) -> str:
     """
     Build comprehensive system prompt with user's data context
-    This helps AI provide personalized, data-driven insights
     """
     if not user_data:
         return """You are DOIT AI Assistant, a helpful and intelligent AI integrated into the DOIT project management system.
@@ -394,6 +390,7 @@ Be concise, helpful, and professional."""
 - Analyze trends and patterns in their work
 - Suggest task prioritization and time management strategies
 - Help with project planning and sprint organization
+
 ## TASK AUTOMATION CAPABILITIES
 
 You can execute task management commands on behalf of the user. When the user asks you to perform actions, you can:
@@ -429,21 +426,6 @@ You can execute task management commands on behalf of the user. When the user as
 **Command Detection:**
 When you detect a request to perform an action (create, assign, update, list), acknowledge the command and execute it. The system will automatically handle the execution and provide results.
 
-**Example Interactions:**
-
-User: "Create a high priority task for fixing the login bug in Project Alpha, assign it to john@example.com"
-Assistant: "I'll create that task for you right away!"
-[System executes command]
-Assistant: "✅ Task 'Fix login bug' created successfully in Project Alpha and assigned to john@example.com!"
-
-User: "Show me all my overdue tasks"
-Assistant: "Let me fetch your overdue tasks..."
-[System executes command]
-Assistant: "You have 3 overdue tasks:
-- [ABC-001] Fix API endpoint - High priority
-- [ABC-002] Update documentation - Medium priority
-- [ABC-003] Review PR #45 - Low priority"
-
 Remember: Always acknowledge commands and provide clear feedback on execution results.
 
 You have complete visibility into their task ecosystem. Use this to provide holistic, intelligent assistance that considers their entire workload and helps them be more productive.
@@ -462,7 +444,6 @@ def format_recent_tasks(tasks):
         due = task.get("dueDate", "No due date")
         ticket = task.get("ticket_id", "")
         labels = ", ".join(task.get("labels", [])) if task.get("labels") else "none"
-
         formatted.append(
             f"- [{ticket}] {task['title']} ({task['status']}) - Priority: {task['priority']} - Due: {due} - Labels: {labels}"
         )
@@ -498,101 +479,8 @@ def extract_insights_from_data(user_data: dict) -> list:
     projects = user_data["stats"]["projects"]
     velocity = user_data["velocity"]
 
-    # Critical: Overdue tasks
-    # if tasks["overdue"] > 0:
-    #     insights.append(
-    #         {
-    #             "type": "critical",
-    #             "icon": "🚨",
-    #             "title": f"{tasks['overdue']} Overdue Task(s)",
-    #             "description": "Immediate action required to address overdue items",
-    #             "priority": 1,
-    #         }
-    #     )
-
-    # Warning: Due soon
-    # if tasks["dueSoon"] > 0:
-    #     insights.append(
-    #         {
-    #             "type": "warning",
-    #             "icon": "⏰",
-    #             "title": f"{tasks['dueSoon']} Task(s) Due This Week",
-    #             "description": "Plan your time wisely for upcoming deadlines",
-    #             "priority": 2,
-    #         }
-    #     )
-
-    # Positive: Great weekly performance
-    # if tasks["completedWeek"] >= 5:
-    #     insights.append(
-    #         {
-    #             "type": "success",
-    #             "icon": "🌟",
-    #             "title": "Excellent Weekly Performance!",
-    #             "description": f"You've completed {tasks['completedWeek']} tasks this week",
-    #             "priority": 3,
-    #         }
-    #     )
-
-    # Info: High workload
     high_priority = tasks["priorityBreakdown"].get("High", 0)
-    # if high_priority > 5:
-    #     insights.append(
-    #         {
-    #             "type": "info",
-    #             "icon": "📊",
-    #             "title": f"{high_priority} High Priority Tasks",
-    #             "description": "Consider reviewing priorities and deadlines",
-    #             "priority": 4,
-    #         }
-    #     )
 
-    # Blocked tasks warning
-    # if user_data["blockers"]["blocked_tasks"] > 0:
-    #     insights.append(
-    #         {
-    #             "type": "warning",
-    #             "icon": "🚧",
-    #             "title": f"{user_data['blockers']['blocked_tasks']} Blocked Task(s)",
-    #             "description": "Tasks waiting on dependencies - review blockers",
-    #             "priority": 3,
-    #         }
-    #     )
-
-    # Velocity insight
-    # if velocity["completed_last_30_days"] > 0:
-    #     avg = velocity["avg_per_week"]
-    #     insights.append(
-    #         {
-    #             "type": "info",
-    #             "icon": "📈",
-    #             "title": f"Velocity: {avg} tasks/week",
-    #             "description": f"Completed {velocity['completed_last_30_days']} tasks in last 30 days",
-    #             "priority": 5,
-    #         }
-    #     )
-
-    # Active sprint status
-    # if user_data.get("activeSprint"):
-    #     sprint = user_data["activeSprint"]
-    #     progress = round(
-    #         (sprint["completed_tasks"] / sprint["total_tasks"] * 100)
-    #         if sprint["total_tasks"] > 0
-    #         else 0,
-    #         1,
-    #     )
-
-    #     insights.append(
-    #         {
-    #             "type": "info",
-    #             "icon": "🏃",
-    #             "title": f"Active Sprint: {sprint['name']}",
-    #             "description": f"{progress}% complete ({sprint['completed_tasks']}/{sprint['total_tasks']} tasks)",
-    #             "priority": 2,
-    #         }
-    #     )
-
-    # Sort by priority
     insights.sort(key=lambda x: x["priority"])
 
     return insights

@@ -1,6 +1,3 @@
-// frontend/src/services/foundryAgentAPI.js
-// Service layer for the Azure AI Foundry Agent backend (/api/foundry-agent)
-
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const getToken = () => localStorage.getItem("token");
@@ -25,9 +22,7 @@ const getAuthHeaders = () => {
 const BASE = `${API_BASE_URL}/api/foundry-agent`;
 
 export const foundryAgentAPI = {
-  // ── Conversations ────────────────────────────────────────────────────────
 
-  /** Create a new conversation record */
   createConversation: async (title = "Agent Chat") => {
     const res = await fetch(`${BASE}/conversations`, {
       method: "POST",
@@ -39,7 +34,6 @@ export const foundryAgentAPI = {
     return data;
   },
 
-  /** List all conversations for the current user */
   listConversations: async () => {
     const res = await fetch(`${BASE}/conversations`, { headers: getAuthHeaders() });
     const data = await res.json();
@@ -47,7 +41,6 @@ export const foundryAgentAPI = {
     return data;
   },
 
-  /** Get all stored messages in a conversation */
   getMessages: async (conversationId) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}/messages`, {
       headers: getAuthHeaders(),
@@ -57,7 +50,6 @@ export const foundryAgentAPI = {
     return data;
   },
 
-  /** Delete a conversation (also resets the Foundry thread) */
   deleteConversation: async (conversationId) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}`, {
       method: "DELETE",
@@ -68,14 +60,6 @@ export const foundryAgentAPI = {
     return data;
   },
 
-  // ── Core: send message ───────────────────────────────────────────────────
-
-  /**
-   * Send a message to the Foundry Agent and receive a reply.
-   * @param {string} conversationId
-   * @param {string} content - User message text
-   * @param {boolean} includeUserContext - Inject live DOIT context (default true)
-   */
   sendMessage: async (conversationId, content, includeUserContext = true) => {
     const res = await fetch(`${BASE}/conversations/${conversationId}/messages`, {
       method: "POST",
@@ -84,12 +68,29 @@ export const foundryAgentAPI = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.error || "Failed to send message");
-    return data; // { success, message: { _id, role, content, created_at, tokens_used }, thread_id, tokens }
+    return data;
   },
 
-  // ── Thread management ────────────────────────────────────────────────────
+  uploadFile: async (conversationId, file) => {
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+    const formData = new FormData();
+    formData.append("file", file);
 
-  /** Reset the Foundry thread for the current user (start fresh) */
+    const res = await fetch(`${BASE}/conversations/${conversationId}/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Tab-Session-Key": tabSessionKey,
+        // No Content-Type here — browser sets multipart boundary automatically
+      },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || "Upload failed");
+    return data;
+  },
+
   resetThread: async () => {
     const res = await fetch(`${BASE}/reset-thread`, {
       method: "POST",
@@ -100,7 +101,6 @@ export const foundryAgentAPI = {
     return data;
   },
 
-  /** Fetch raw messages directly from the Foundry thread (debug/sync) */
   getThreadMessages: async () => {
     const res = await fetch(`${BASE}/thread-messages`, { headers: getAuthHeaders() });
     const data = await res.json();
@@ -108,15 +108,13 @@ export const foundryAgentAPI = {
     return data;
   },
 
-  // ── Health ───────────────────────────────────────────────────────────────
-
-  /** Check Foundry Agent connectivity */
   health: async () => {
     const res = await fetch(`${BASE}/health`, { headers: getAuthHeaders() });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.error || "Health check failed");
     return data;
   },
+
 };
 
 export default foundryAgentAPI;

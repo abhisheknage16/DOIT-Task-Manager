@@ -6,6 +6,7 @@ from typing import Dict, Set, List
 from fastapi import WebSocket
 import json
 import asyncio
+import sys
 from datetime import datetime
 
 
@@ -34,20 +35,26 @@ class ConnectionManager:
             self.user_channels[user_id] = set()
         self.user_channels[user_id].add(channel_id)
         
-        print(f"[WS] User {user_id} connected to channel {channel_id}")
-        print(f"[WS] Active connections in channel {channel_id}: {len(self.active_connections[channel_id])}")
+        print(f"[WS] User {user_id} connected to channel {channel_id}", file=sys.stderr)
+        print(
+            f"[WS] Active connections in channel {channel_id}: {len(self.active_connections[channel_id])}",
+            file=sys.stderr,
+        )
     
     def disconnect(self, channel_id: str, user_id: str):
         """Remove a WebSocket connection"""
         if channel_id in self.active_connections:
             if user_id in self.active_connections[channel_id]:
                 del self.active_connections[channel_id][user_id]
-                print(f"[WS] User {user_id} disconnected from channel {channel_id}")
+                print(f"[WS] User {user_id} disconnected from channel {channel_id}", file=sys.stderr)
             
             # Clean up empty channel
             if not self.active_connections[channel_id]:
                 del self.active_connections[channel_id]
-                print(f"[WS] Channel {channel_id} has no active connections, cleaned up")
+                print(
+                    f"[WS] Channel {channel_id} has no active connections, cleaned up",
+                    file=sys.stderr,
+                )
         
         # Remove from user channels tracking
         if user_id in self.user_channels:
@@ -69,13 +76,13 @@ class ConnectionManager:
                 try:
                     await self.active_connections[channel_id][user_id].send_json(message)
                 except Exception as e:
-                    print(f"[WS] Error sending to user {user_id}: {str(e)}")
+                    print(f"[WS] Error sending to user {user_id}: {str(e)}", file=sys.stderr)
                     self.disconnect(channel_id, user_id)
     
     async def broadcast_to_channel(self, message: dict, channel_id: str, exclude_user: str = None):
         """Broadcast message to all users in a channel"""
         if channel_id not in self.active_connections:
-            print(f"[WS] No active connections for channel {channel_id}")
+            print(f"[WS] No active connections for channel {channel_id}", file=sys.stderr)
             return
         
         # Get list of connections to avoid dict changed during iteration
@@ -92,14 +99,14 @@ class ConnectionManager:
                 await websocket.send_json(message)
                 success_count += 1
             except Exception as e:
-                print(f"[WS] Failed to send to user {user_id}: {str(e)}")
+                print(f"[WS] Failed to send to user {user_id}: {str(e)}", file=sys.stderr)
                 disconnected_users.append(user_id)
         
         # Clean up disconnected users
         for user_id in disconnected_users:
             self.disconnect(channel_id, user_id)
         
-        print(f"[WS] Broadcasted to {success_count} users in channel {channel_id}")
+        print(f"[WS] Broadcasted to {success_count} users in channel {channel_id}", file=sys.stderr)
     
     async def broadcast_to_all_channels(self, message: dict, project_id: str = None):
         """Broadcast to all channels (optionally filtered by project)"""

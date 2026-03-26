@@ -45,6 +45,29 @@ class Task:
         return tasks.find_one({"ticket_id": ticket_id.upper()})
 
     @staticmethod
+    def find_by_identifier(task_identifier):
+        """Resolve task by Mongo _id, ticket_id, or legacy task_id field."""
+        identifier = str(task_identifier or "").strip()
+        if not identifier:
+            return None
+
+        # Try ObjectId lookup first when identifier looks like one.
+        if len(identifier) == 24:
+            try:
+                task = tasks.find_one({"_id": ObjectId(identifier)})
+                if task:
+                    return task
+            except Exception:
+                pass
+
+        # Fallbacks: ticket ID and legacy task_id string field.
+        task = tasks.find_one({"ticket_id": identifier.upper()})
+        if task:
+            return task
+
+        return tasks.find_one({"task_id": identifier})
+
+    @staticmethod
     def find_by_project(project_id):
         """Get all tasks for a project"""
         return list(tasks.find({"project_id": project_id}).sort("created_at", -1))

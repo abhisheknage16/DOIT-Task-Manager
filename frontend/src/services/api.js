@@ -20,6 +20,7 @@ const getTabSessionKey = () => {
   return key;
 };
 
+
 // Helper to get auth headers (always includes tab key)
 export const getAuthHeaders = () => {
   const headers = {
@@ -35,6 +36,91 @@ export const getAuthHeaders = () => {
   headers["X-Tab-Session-Key"] = getTabSessionKey();
   
   return headers;
+};
+
+export const documentIntelligenceAPI = {
+  // Analyze a file (PDF, DOCX, XLSX, images etc.)
+  analyzeFile: async (file, question = '') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (question) formData.append('question', question);
+
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/analyze`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+        // No Content-Type — browser sets it for FormData
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || data.error || 'Analysis failed');
+    return data;
+  },
+
+  // Analyze from URL
+  analyzeUrl: async (url, question = '') => {
+    const formData = new FormData();
+    formData.append('url', url);
+    if (question) formData.append('question', question);
+
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/analyze`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || data.error || 'Analysis failed');
+    return data;
+  },
+
+  // Export InsightReport as PDF
+  exportPdf: async (report) => {
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/export-pdf`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(report)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'PDF export failed');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `insights_${Date.now()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    return { success: true };
+  },
+
+  // Health check
+  checkHealth: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/health`, {
+      headers: getAuthHeaders()
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Health check failed');
+    return data;
+  }
 };
 
 // Data Visualization API
@@ -1090,4 +1176,135 @@ export const globalInsightsAPI = {
     
     return null;
   }
+};
+
+// ============================================================================
+// Voice Chat API - Azure Whisper + TTS
+// Add this to the end of frontend/src/services/api.js
+// ============================================================================
+
+/**
+ * Voice Chat API
+ * Azure Whisper STT + GPT-4o-mini + Azure TTS
+ * Backend processing for professional voice quality
+ */
+export const voiceChatAPI = {
+  /**
+   * Health check for voice chat services
+   * @returns {Promise} Service status and available voice presets
+   */
+  checkHealth: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/voice-chat/voice/health`, {
+      headers: getAuthHeaders()
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Voice chat health check failed');
+    }
+    
+    return data;
+  },
+
+  /**
+   * Transcribe audio file using Azure Whisper
+   * @param {File|Blob} audioFile - Audio file (webm, mp3, wav, m4a, ogg)
+   * @returns {Promise} Transcription result with text, language, duration
+   */
+  transcribe: async (audioFile) => {
+    const formData = new FormData();
+    formData.append('audio', audioFile);
+    
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+    
+    const response = await fetch(`${API_BASE_URL}/api/voice-chat/voice/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+        // Don't set Content-Type - browser sets it with boundary for FormData
+      },
+      body: formData
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || data.error || 'Transcription failed');
+    }
+    
+    return data;
+  },
+
+  /**
+   * Convert text to speech using Azure TTS
+   * @param {string} text - Text to synthesize
+   * @param {string} persona - Voice persona: 'friendly', 'professional', 'direct', 'assistant'
+   * @returns {Promise<Blob>} Audio blob (MP3)
+   */
+  synthesize: async (text, persona = 'friendly') => {
+    const response = await fetch(`${API_BASE_URL}/api/voice-chat/voice/synthesize`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text, persona })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || error.error || 'Text-to-speech failed');
+    }
+    
+    // Return audio blob
+    return await response.blob();
+  },
+
+  /**
+   * Complete voice chat flow: Audio → Whisper → GPT → TTS → Audio
+   * @param {File|Blob} audioFile - User's audio recording
+   * @param {string} persona - Voice persona
+   * @param {Array} conversationHistory - Previous conversation turns
+   * @returns {Promise<{audioBlob: Blob, transcript: string, responseText: string}>}
+   */
+  chat: async (audioFile, persona = 'friendly', conversationHistory = []) => {
+    const formData = new FormData();
+    formData.append('audio', audioFile);
+    formData.append('persona', persona);
+    formData.append('conversation_history', JSON.stringify(conversationHistory));
+    
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+    
+    const response = await fetch(`${API_BASE_URL}/api/voice-chat/voice/chat`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+        // Don't set Content-Type for FormData
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || error.error || 'Voice chat failed');
+    }
+    
+    // Get transcript and response text from headers
+    const transcript = response.headers.get('X-Transcript') || 'Voice input';
+    const responseText = response.headers.get('X-Response-Text') || '';
+    
+    // Get audio blob
+    const audioBlob = await response.blob();
+    
+    return {
+      audioBlob,
+      transcript,
+      responseText
+    };
+  },
+
+  /**
+   * Available voice personas
+   */
+  personas: ['friendly', 'professional', 'direct', 'assistant']
 };

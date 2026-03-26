@@ -19,7 +19,7 @@ python-dotenv>=1.0.1
 python-multipart>=0.0.9
 typing-extensions>=4.14.0
 requests>=2.32.0
-
+pandas 
 # AI Integration
 anthropic>=0.34.0
 openai>=1.12.0  # For Azure OpenAI (GPT-5.2-chat)

@@ -181,7 +181,7 @@ def get_task_git_activity(task_id, user_id):
         return error_response("Unauthorized", 401)
     
     # Get task
-    task = Task.find_by_id(task_id)
+    task = Task.find_by_identifier(task_id)
     if not task:
         return error_response("Task not found", 404)
     

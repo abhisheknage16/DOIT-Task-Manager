@@ -40,7 +40,7 @@ class SendMessageRequest(BaseModel):
 
 
 @router.post("/conversations")
-async def create_conversation(
+def create_conversation(
     request: CreateConversationRequest,
     current_user: str = Depends(get_current_user),
 ):
@@ -49,13 +49,13 @@ async def create_conversation(
 
 
 @router.get("/conversations")
-async def list_conversations(current_user: str = Depends(get_current_user)):
+def list_conversations(current_user: str = Depends(get_current_user)):
     """List all LangGraph AI conversations for the current user."""
     return get_langgraph_conversations(user_id=current_user)
 
 
 @router.get("/conversations/{conversation_id}/messages")
-async def get_messages(
+def get_messages(
     conversation_id: str,
     current_user: str = Depends(get_current_user),
 ):
@@ -64,7 +64,7 @@ async def get_messages(
 
 
 @router.delete("/conversations/{conversation_id}")
-async def delete_conversation(
+def delete_conversation(
     conversation_id: str,
     current_user: str = Depends(get_current_user),
 ):
@@ -76,7 +76,7 @@ async def delete_conversation(
 
 
 @router.post("/conversations/{conversation_id}/messages")
-async def send_message(
+def send_message(
     conversation_id: str,
     request: SendMessageRequest,
     current_user: str = Depends(get_current_user),
@@ -105,7 +105,7 @@ async def send_message(
 
 
 @router.post("/conversations/{conversation_id}/reset-history")
-async def reset_history(
+def reset_history(
     conversation_id: str,
     current_user: str = Depends(get_current_user),
 ):
@@ -114,7 +114,7 @@ async def reset_history(
 
 
 @router.get("/conversations/{conversation_id}/history")
-async def get_history(
+def get_history(
     conversation_id: str,
     current_user: str = Depends(get_current_user),
 ):
@@ -126,7 +126,7 @@ async def get_history(
 
 
 @router.get("/health")
-async def health():
+def health():
     """
     Check the LangGraph agent stack:
     - Azure OpenAI connectivity

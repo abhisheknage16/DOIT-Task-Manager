@@ -322,7 +322,7 @@ Simplified interface for AI Agent to create and manage tasks
 """
 
 from fastapi import HTTPException
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from controllers import task_controller
 from models.user import User
@@ -330,6 +330,70 @@ from models.project import Project
 from database import db
 from bson import ObjectId
 import json
+import re
+
+
+ALLOWED_BULK_TASK_UPDATE_FIELDS = {
+    "title",
+    "description",
+    "priority",
+    "status",
+    "assignee_id",
+    "due_date",
+    "issue_type",
+    "labels",
+    "comment",
+}
+
+
+def _resolve_task_by_identifier(task_identifier: str):
+    """Resolve task by Mongo _id or ticket_id like AA-003."""
+    from models.task import Task
+
+    identifier = (task_identifier or "").strip()
+    is_object_id_like = bool(re.fullmatch(r"[0-9a-fA-F]{24}", identifier))
+    is_ticket_like = bool(re.fullmatch(r"[A-Za-z]{2,}-\d+", identifier))
+
+    if is_object_id_like:
+        return Task.find_by_id(identifier) or Task.find_by_ticket_id(identifier)
+    if is_ticket_like:
+        return Task.find_by_ticket_id(identifier) or Task.find_by_id(identifier)
+    return Task.find_by_id(identifier) or Task.find_by_ticket_id(identifier)
+
+
+def _normalize_due_date_to_iso(due_date: str) -> str:
+    """Normalize due date to YYYY-MM-DD, accepting common human formats."""
+    if not due_date or not str(due_date).strip():
+        raise HTTPException(status_code=400, detail="due_date is required")
+
+    raw = str(due_date).strip()
+
+    # Accept ISO formats first.
+    try:
+        return datetime.fromisoformat(raw).date().isoformat()
+    except Exception:
+        pass
+
+    patterns = [
+        "%Y-%m-%d",
+        "%B %d %Y",
+        "%B %d, %Y",
+        "%b %d %Y",
+        "%b %d, %Y",
+        "%d %B %Y",
+        "%d %b %Y",
+    ]
+
+    for pattern in patterns:
+        try:
+            return datetime.strptime(raw, pattern).date().isoformat()
+        except Exception:
+            continue
+
+    raise HTTPException(
+        status_code=400,
+        detail="Invalid due_date format. Use YYYY-MM-DD or a parseable date string.",
+    )
 
 
 def agent_create_task(
@@ -361,12 +425,15 @@ def agent_create_task(
                 status_code=404, detail=f"User with email '{requesting_user}' not found"
             )
 
-        # Step 2: Check if user has permission to create tasks (Admin or Member)
+        # Step 2: Check if user has permission to create tasks (Admin/Member/Super-Admin)
         user_role = actual_user.get("role", "").lower()
-        if user_role not in ["admin", "member"]:
+        if user_role not in ["admin", "member", "super-admin"]:
             raise HTTPException(
                 status_code=403,
-                detail=f"Only Admin and Member users can create tasks. Your role is '{actual_user.get('role')}'",
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can create tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
             )
 
         # Step 3: Use actual user's ID for task creation (for audit trail)
@@ -462,23 +529,37 @@ def agent_assign_task(
                 status_code=404, detail=f"User with email '{requesting_user}' not found"
             )
 
-        # Step 2: Check permission (Admin or Member)
+        # Step 2: Check permission (Admin/Member/Super-Admin)
         user_role = actual_user.get("role", "").lower()
-        if user_role not in ["admin", "member"]:
+        if user_role not in ["admin", "member", "super-admin"]:
             raise HTTPException(
                 status_code=403,
-                detail=f"Only Admin and Member users can assign tasks. Your role is '{actual_user.get('role')}'",
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can assign tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
             )
 
         modifier_id = str(actual_user["_id"])
 
+        assignee_identifier = (assignee_identifier or "").strip()
+
         # Try email first
         assignee = User.find_by_email(assignee_identifier)
 
-        # Try name if email fails
+        # Try direct user_id (Mongo ObjectId) if email lookup fails
+        if not assignee and re.fullmatch(r"[0-9a-fA-F]{24}", assignee_identifier):
+            assignee = User.find_by_id(assignee_identifier)
+
+        # Try exact display name if still unresolved
         if not assignee:
             assignee = db.users.find_one(
-                {"name": {"$regex": f"^{assignee_identifier}$", "$options": "i"}}
+                {
+                    "name": {
+                        "$regex": f"^{re.escape(assignee_identifier)}$",
+                        "$options": "i",
+                    }
+                }
             )
 
         if not assignee:
@@ -491,11 +572,19 @@ def agent_assign_task(
         # Resolve task_id - could be ticket_id (FTP-005) or MongoDB _id
         from models.task import Task
 
-        task = (
-            Task.find_by_ticket_id(task_id)
-            if task_id.startswith(("FTP-", "SLS-", "TMP-", "TST-", "NP-"))
-            else Task.find_by_id(task_id)
-        )
+        is_object_id_like = bool(re.fullmatch(r"[0-9a-fA-F]{24}", task_id or ""))
+        is_ticket_like = bool(re.fullmatch(r"[A-Za-z]{2,}-\d+", task_id or ""))
+
+        if is_object_id_like:
+            task = Task.find_by_id(task_id)
+            if not task:
+                task = Task.find_by_ticket_id(task_id)
+        elif is_ticket_like:
+            task = Task.find_by_ticket_id(task_id)
+            if not task:
+                task = Task.find_by_id(task_id)
+        else:
+            task = Task.find_by_id(task_id) or Task.find_by_ticket_id(task_id)
 
         if not task:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
@@ -532,6 +621,366 @@ def agent_assign_task(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to assign task: {str(e)}")
+
+
+def agent_update_task(
+    requesting_user: str,
+    task_id: str,
+    user_id: str,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    priority: Optional[str] = None,
+    status: Optional[str] = None,
+    due_date: Optional[str] = None,
+):
+    """
+    Agent-friendly task update with ticket-id or _id resolution and RBAC checks.
+    """
+    try:
+        # Validate requesting user
+        actual_user = User.find_by_email(requesting_user)
+        if not actual_user:
+            raise HTTPException(
+                status_code=404, detail=f"User with email '{requesting_user}' not found"
+            )
+
+        # Allow the same actor roles as task create/update flows
+        user_role = actual_user.get("role", "").lower()
+        if user_role not in ["admin", "member", "super-admin"]:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can update tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
+            )
+
+        modifier_id = str(actual_user["_id"])
+
+        # Resolve task identifier from ticket_id (AA-003) or Mongo _id
+        task = _resolve_task_by_identifier(task_id)
+
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+        actual_task_id = str(task["_id"])
+
+        # Validate user is still a member of target project
+        if not Project.is_member(task["project_id"], modifier_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied. Requesting user is not a member of this project.",
+            )
+
+        update_data = {}
+        if title is not None:
+            update_data["title"] = title
+        if description is not None:
+            update_data["description"] = description
+        if priority is not None:
+            update_data["priority"] = priority
+        if status is not None:
+            update_data["status"] = status
+        if due_date is not None:
+            update_data["due_date"] = due_date
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields provided to update")
+
+        body = json.dumps(update_data)
+        response = task_controller.update_task(body, actual_task_id, modifier_id)
+
+        status_code = response.get("statusCode", 200)
+        if status_code >= 400:
+            if isinstance(response.get("body"), str):
+                error_body = json.loads(response["body"])
+            else:
+                error_body = response.get("body", {})
+
+            error_message = error_body.get("error", "Task update failed")
+            raise HTTPException(status_code=status_code, detail=error_message)
+
+        if isinstance(response.get("body"), str):
+            return json.loads(response["body"])
+        return response.get("body", {})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
+
+
+def agent_bulk_update_task_due_dates(
+    requesting_user: str,
+    project_id: str,
+    due_date: str,
+    task_identifiers: List[str],
+    user_id: str,
+):
+    """
+    Bulk update due_date for one or more tasks using ticket IDs or Mongo _ids.
+    """
+    try:
+        # Validate requesting user
+        actual_user = User.find_by_email(requesting_user)
+        if not actual_user:
+            raise HTTPException(
+                status_code=404, detail=f"User with email '{requesting_user}' not found"
+            )
+
+        user_role = actual_user.get("role", "").lower()
+        if user_role not in ["admin", "member", "super-admin"]:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can update tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
+            )
+
+        modifier_id = str(actual_user["_id"])
+
+        # Validate project existence and membership
+        project = Project.find_by_id(project_id)
+        if not project:
+            raise HTTPException(
+                status_code=404, detail=f"Project with ID '{project_id}' not found"
+            )
+
+        if not Project.is_member(project_id, modifier_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied. Requesting user is not a member of this project.",
+            )
+
+        if not task_identifiers:
+            raise HTTPException(
+                status_code=400,
+                detail="task_identifiers must include at least one task identifier",
+            )
+
+        normalized_due_date = _normalize_due_date_to_iso(due_date)
+
+        updated_tasks = []
+        errors = []
+
+        for identifier in task_identifiers:
+            task = _resolve_task_by_identifier(identifier)
+            if not task:
+                errors.append({"task_identifier": identifier, "error": "Task not found"})
+                continue
+
+            if task.get("project_id") != project_id:
+                errors.append(
+                    {
+                        "task_identifier": identifier,
+                        "error": "Task does not belong to provided project_id",
+                    }
+                )
+                continue
+
+            actual_task_id = str(task["_id"])
+            response = task_controller.update_task(
+                json.dumps({"due_date": normalized_due_date}), actual_task_id, modifier_id
+            )
+
+            status_code = response.get("statusCode", 200)
+            if status_code >= 400:
+                if isinstance(response.get("body"), str):
+                    error_body = json.loads(response["body"])
+                else:
+                    error_body = response.get("body", {})
+                errors.append(
+                    {
+                        "task_identifier": identifier,
+                        "error": error_body.get("error", "Task update failed"),
+                    }
+                )
+                continue
+
+            if isinstance(response.get("body"), str):
+                success_body = json.loads(response["body"])
+            else:
+                success_body = response.get("body", {})
+
+            task_payload = success_body.get("task", {})
+            updated_tasks.append(
+                {
+                    "task_identifier": identifier,
+                    "task_id": str(task_payload.get("_id", actual_task_id)),
+                    "ticket_id": task_payload.get("ticket_id", task.get("ticket_id")),
+                    "due_date": task_payload.get("due_date", normalized_due_date),
+                }
+            )
+
+        return {
+            "success": len(updated_tasks) > 0,
+            "message": "Bulk due-date update completed",
+            "project_id": project_id,
+            "due_date": normalized_due_date,
+            "total_requested": len(task_identifiers),
+            "updated_count": len(updated_tasks),
+            "failed_count": len(errors),
+            "updated_tasks": updated_tasks,
+            "errors": errors,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed bulk due-date update: {str(e)}"
+        )
+
+
+def agent_bulk_update_tasks(
+    requesting_user: str,
+    project_id: str,
+    task_identifiers: List[str],
+    updates: Dict[str, Any],
+    user_id: str,
+):
+    """
+    Bulk update allowed task fields for one or more tasks using ticket IDs or Mongo _ids.
+    """
+    try:
+        # Validate requesting user
+        actual_user = User.find_by_email(requesting_user)
+        if not actual_user:
+            raise HTTPException(
+                status_code=404, detail=f"User with email '{requesting_user}' not found"
+            )
+
+        user_role = actual_user.get("role", "").lower()
+        if user_role not in ["admin", "member", "super-admin"]:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can update tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
+            )
+
+        modifier_id = str(actual_user["_id"])
+
+        # Validate project existence and membership
+        project = Project.find_by_id(project_id)
+        if not project:
+            raise HTTPException(
+                status_code=404, detail=f"Project with ID '{project_id}' not found"
+            )
+
+        if not Project.is_member(project_id, modifier_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied. Requesting user is not a member of this project.",
+            )
+
+        if not task_identifiers:
+            raise HTTPException(
+                status_code=400,
+                detail="task_identifiers must include at least one task identifier",
+            )
+
+        if not isinstance(updates, dict) or not updates:
+            raise HTTPException(status_code=400, detail="updates object is required")
+
+        # Keep only explicitly allowed fields and reject unsupported fields early.
+        provided_fields = set(updates.keys())
+        unsupported_fields = sorted(
+            field for field in provided_fields if field not in ALLOWED_BULK_TASK_UPDATE_FIELDS
+        )
+        if unsupported_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Unsupported update fields: "
+                    + ", ".join(unsupported_fields)
+                    + ". Allowed fields: "
+                    + ", ".join(sorted(ALLOWED_BULK_TASK_UPDATE_FIELDS))
+                ),
+            )
+
+        normalized_updates: Dict[str, Any] = {
+            key: value
+            for key, value in updates.items()
+            if key in ALLOWED_BULK_TASK_UPDATE_FIELDS
+        }
+
+        if "due_date" in normalized_updates and normalized_updates.get("due_date") is not None:
+            normalized_updates["due_date"] = _normalize_due_date_to_iso(
+                str(normalized_updates.get("due_date"))
+            )
+
+        updated_tasks = []
+        errors = []
+
+        for identifier in task_identifiers:
+            task = _resolve_task_by_identifier(identifier)
+            if not task:
+                errors.append({"task_identifier": identifier, "error": "Task not found"})
+                continue
+
+            if task.get("project_id") != project_id:
+                errors.append(
+                    {
+                        "task_identifier": identifier,
+                        "error": "Task does not belong to provided project_id",
+                    }
+                )
+                continue
+
+            actual_task_id = str(task["_id"])
+            response = task_controller.update_task(
+                json.dumps(normalized_updates), actual_task_id, modifier_id
+            )
+
+            status_code = response.get("statusCode", 200)
+            if status_code >= 400:
+                if isinstance(response.get("body"), str):
+                    error_body = json.loads(response["body"])
+                else:
+                    error_body = response.get("body", {})
+                errors.append(
+                    {
+                        "task_identifier": identifier,
+                        "error": error_body.get("error", "Task update failed"),
+                    }
+                )
+                continue
+
+            if isinstance(response.get("body"), str):
+                success_body = json.loads(response["body"])
+            else:
+                success_body = response.get("body", {})
+
+            task_payload = success_body.get("task", {})
+            updated_tasks.append(
+                {
+                    "task_identifier": identifier,
+                    "task_id": str(task_payload.get("_id", actual_task_id)),
+                    "ticket_id": task_payload.get("ticket_id", task.get("ticket_id")),
+                    "updated_fields": sorted(list(normalized_updates.keys())),
+                    "task": task_payload,
+                }
+            )
+
+        return {
+            "success": len(updated_tasks) > 0,
+            "message": "Bulk task update completed",
+            "project_id": project_id,
+            "applied_updates": normalized_updates,
+            "total_requested": len(task_identifiers),
+            "updated_count": len(updated_tasks),
+            "failed_count": len(errors),
+            "updated_tasks": updated_tasks,
+            "errors": errors,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed bulk task update: {str(e)}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

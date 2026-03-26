@@ -1,13 +1,13 @@
 """
 AI User Analytics Controller
-Provides GPT-5 powered insights and FLUX visualizations on user task/project data
+Provides GPT-powered insights and FLUX visualizations on user task/project data
 """
 
 import json
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 from database import db
-from utils.azure_ai_utils import chat_completion, generate_image
+from utils.azure_ai_utils import chat_completion_gpt4_mini, generate_image
 
 
 def get_user_analytics_data(user_id: str) -> dict:
@@ -254,7 +254,7 @@ def get_user_analytics_data(user_id: str) -> dict:
 
 def generate_ai_analytics_insight(user_id: str, question: str = None) -> dict:
     """
-    Use GPT-5 to generate personalized performance insights from user data.
+    Use GPT-4.1-mini profile to generate personalized performance insights from user data.
     """
     try:
         analytics = get_user_analytics_data(user_id)
@@ -323,7 +323,7 @@ ALERTS:
             },
         ]
 
-        response = chat_completion(messages, max_tokens=1500)
+        response = chat_completion_gpt4_mini(messages, max_tokens=1500)
         return {
             "success": True,
             "insight": response["content"],

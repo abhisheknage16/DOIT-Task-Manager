@@ -11,6 +11,36 @@ from utils.websocket_manager import manager
 from bson import ObjectId
 from datetime import datetime, timezone
 
+
+def _enrich_task_display_fields(task):
+    """Populate creator/assignee display fields for task payloads used by UI and WebSocket updates."""
+    if not task:
+        return task
+
+    # Creator details
+    if task.get("created_by"):
+        creator = User.find_by_id(task["created_by"])
+        if creator:
+            task["created_by_name"] = creator.get("name", "Unknown")
+            task["created_by_email"] = creator.get("email", "")
+        else:
+            task["created_by_name"] = "Unknown"
+            task["created_by_email"] = ""
+    else:
+        task["created_by_name"] = "Unknown"
+        task["created_by_email"] = ""
+
+    # Assignee details (preserve existing values, ensure defaults if missing)
+    if not task.get("assignee_name"):
+        task["assignee_name"] = "Unassigned"
+    if task.get("assignee_id") and not task.get("assignee_email"):
+        assignee = User.find_by_id(task["assignee_id"])
+        task["assignee_email"] = assignee.get("email", "") if assignee else ""
+    elif not task.get("assignee_id"):
+        task["assignee_email"] = task.get("assignee_email", "")
+
+    return task
+
 def create_task(body_str, user_id):
     """Create a new task - requires authentication"""
     if not user_id:
@@ -134,6 +164,7 @@ def create_task(body_str, user_id):
     task["_id"] = str(task["_id"])
     task["created_at"] = datetime_to_iso(task["created_at"])
     task["updated_at"] = datetime_to_iso(task["updated_at"])
+    task = _enrich_task_display_fields(task)
     
     # Broadcast task creation to Kanban board
     asyncio.create_task(manager.broadcast_to_channel({
@@ -462,6 +493,7 @@ def update_task(body_str, task_id, user_id):
         updated_task["_id"] = str(updated_task["_id"])
         updated_task["created_at"] = datetime_to_iso(updated_task["created_at"])
         updated_task["updated_at"] = datetime_to_iso(updated_task["updated_at"])
+        updated_task = _enrich_task_display_fields(updated_task)
         # Convert moved_to_backlog_at if present
         if "moved_to_backlog_at" in updated_task and updated_task["moved_to_backlog_at"]:
             updated_task["moved_to_backlog_at"] = datetime_to_iso(updated_task["moved_to_backlog_at"])

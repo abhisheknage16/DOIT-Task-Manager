@@ -95,7 +95,10 @@ async def get_task(task_id: str, user_id: str = Depends(get_current_user)):
 @router.put("/{task_id}")
 async def update_task(task_id: str, data: TaskUpdate, user_id: str = Depends(get_current_user)):
     """Update task - CRITICAL for Kanban drag-drop"""
-    body = json.dumps(data.model_dump())
+    # Only forward fields explicitly provided by the client.
+    # This prevents optional fields (like assignee_id) defaulting to None
+    # from accidentally clearing existing task assignment during status-only updates.
+    body = json.dumps(data.model_dump(exclude_unset=True))
     response = task_controller.update_task(body, task_id, user_id)
     return handle_controller_response(response)
 

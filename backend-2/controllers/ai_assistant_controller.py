@@ -1,6 +1,6 @@
 """
 AI Assistant Controller - COMPLETE WITH ALL OPERATIONS
-Handles ChatGPT-like AI interactions using Azure AI Foundry (GPT-5.2-chat + FLUX-1.1-pro)
+Handles ChatGPT-like AI interactions using env-configured Azure OpenAI + FLUX models
 NOW with: Task automation, Sprint management, Member management, and intelligent insights
 """
 
@@ -103,25 +103,41 @@ def detect_task_command(message: str) -> bool:
         # Task operations
         "create task",
         "create a task",
+        "create ticket",
+        "create a ticket",
         "make a task",
+        "make a ticket",
         "add task",
+        "add ticket",
         "new task",
+        "new ticket",
         "assign task",
+        "assign ticket",
         "assign to",
         "give task to",
         "update task",
+        "update ticket",
         "change status",
         "mark as",
         "set status",
         "list tasks",
+        "list tickets",
         "show tasks",
+        "show tickets",
         "my tasks",
+        "my tickets",
         "get tasks",
+        "get tickets",
         "find tasks",
+        "find tickets",
         "list all tasks",
+        "list all tickets",
         "show all tasks",
+        "show all tickets",
         "tasks in",
+        "tickets in",
         "tasks for",
+        "tickets for",
         "update priority",
         "change priority",
         "set priority",
@@ -1417,6 +1433,73 @@ def send_message(
 
         print(f"   ✅ Conversation verified")
 
+        # 🖼️ HANDLE IMAGE GENERATION INTENT FROM NORMAL CHAT INPUT
+        if detect_image_generation_request(content):
+            print(f"   🖼️ Detected image generation intent")
+
+            user_message_id = AIMessage.create(
+                conversation_id=conversation_id, role="user", content=content
+            )
+            print(f"   ✅ User message saved: {user_message_id}")
+
+            prompt = extract_image_prompt(content)
+            print(f"   🎨 Image prompt: {prompt}")
+
+            image_result = generate_image(prompt)
+
+            if image_result.get("success"):
+                ai_content = f"Here's your generated image for: '{prompt}'"
+                ai_message_id = AIMessage.create(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=ai_content,
+                    image_url=image_result.get("image_url") or image_result.get("filepath"),
+                )
+                print(f"   ✅ Image generated and saved: {ai_message_id}")
+
+                if conversation.get("message_count", 0) <= 2:
+                    title = content[:50] + ("..." if len(content) > 50 else "")
+                    AIConversation.update_title(conversation_id, title)
+
+                return {
+                    "success": True,
+                    "message": {
+                        "_id": str(ai_message_id),
+                        "role": "assistant",
+                        "content": ai_content,
+                        "image_url": image_result.get("image_url") or image_result.get("filepath"),
+                        "created_at": datetime.utcnow().isoformat(),
+                    },
+                    "image": image_result,
+                    "image_generated": True,
+                    "command_executed": False,
+                }
+
+            error_text = image_result.get("error", "Unknown error")
+            if image_result.get("details"):
+                error_text = f"{error_text}. Details: {image_result.get('details')}"
+
+            ai_content = f"❌ Image generation failed: {error_text}"
+            ai_message_id = AIMessage.create(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=ai_content,
+            )
+            print(f"   ❌ Image generation failed")
+
+            return {
+                "success": True,
+                "message": {
+                    "_id": str(ai_message_id),
+                    "role": "assistant",
+                    "content": ai_content,
+                    "created_at": datetime.utcnow().isoformat(),
+                },
+                "image": image_result,
+                "image_generated": False,
+                "command_executed": False,
+            }
+
         # 🤖 CHECK IF THIS IS A TASK AUTOMATION COMMAND
         is_command = detect_task_command(content)
 
@@ -2192,6 +2275,45 @@ def detect_task_command(message: str) -> bool:
 
     message_lower = message.lower()
     return any(keyword in message_lower for keyword in command_keywords)
+
+
+def detect_image_generation_request(message: str) -> bool:
+    """Detect whether a chat message asks to generate an image."""
+    message_lower = (message or "").lower()
+    image_keywords = [
+        "generate image",
+        "generate an image",
+        "create image",
+        "create an image",
+        "make image",
+        "make an image",
+        "draw ",
+        "illustration",
+        "image of",
+        "picture of",
+    ]
+    return any(keyword in message_lower for keyword in image_keywords)
+
+
+def extract_image_prompt(message: str) -> str:
+    """Extract a clean image prompt from natural language command text."""
+    text = (message or "").strip()
+
+    patterns = [
+        r"^generate\s+an?\s+image\s+of\s+",
+        r"^generate\s+an?\s+image\s+",
+        r"^create\s+an?\s+image\s+of\s+",
+        r"^create\s+an?\s+image\s+",
+        r"^make\s+an?\s+image\s+of\s+",
+        r"^make\s+an?\s+image\s+",
+        r"^draw\s+",
+    ]
+
+    prompt = text
+    for pattern in patterns:
+        prompt = re.sub(pattern, "", prompt, flags=re.IGNORECASE).strip()
+
+    return prompt or text
 
 
 def parse_task_command(command: str, context: dict = None):
